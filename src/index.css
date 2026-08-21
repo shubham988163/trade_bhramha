@@ -2,7 +2,8 @@
    TradeBrahma — Professional Institutional Terminal Design System v3.0
    ============================================================ */
 @import "tailwindcss";
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
+/* Fonts are loaded via <link rel="preconnect"/stylesheet> in index.html — an
+   @import here would land after Tailwind's expansion and be invalid CSS. */
 
 :root {
   --bg-dark: #040710;
@@ -22,11 +23,11 @@
   --color-purple: #a78bfa;
 }
 
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
+/* NOTE: do NOT add an unlayered `* { margin:0; padding:0 }` reset here.
+   `@import "tailwindcss"` puts utilities in `@layer utilities`, and any
+   unlayered rule outranks every layered one — such a reset silently kills
+   every padding and margin utility in the app. Tailwind's preflight already
+   resets these correctly inside the base layer. */
 
 body {
   background-color: var(--bg-dark);
@@ -183,11 +184,16 @@ body::before {
 }
 
 /* ============ Badges ============ */
+/* Every badge variant must be listed here — a variant that only declares its
+   colours renders with no padding and wraps mid-label. */
 .badge,
 .badge-pro,
 .badge-bull,
+.badge-bullish,
 .badge-bear,
-.badge-cyan {
+.badge-bearish,
+.badge-cyan,
+.badge-amber {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -420,6 +426,87 @@ input:focus, select:focus {
   outline: none;
 }
 
+/* ============ Focus visibility (a11y) ============
+   Keyboard users get a clear ring; pointer users see nothing extra. */
+.focus-ring:focus-visible,
+button:focus-visible,
+[role="button"]:focus-visible {
+  outline: 2px solid #38bdf8;
+  outline-offset: 2px;
+  border-radius: 10px;
+}
+
+/* ============ Meters ============
+   Segmented advance/decline bar. The 2px surface-coloured gap between
+   segments keeps adjacent fills readable instead of blending into one
+   continuous band, and the rounded outer ends anchor the track. */
+.meter {
+  display: flex;
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(2, 6, 16, 0.75);
+  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.08);
+}
+.meter > span {
+  display: block;
+  height: 100%;
+  min-width: 0;
+}
+.meter > span + span {
+  border-left: 2px solid #070b14;
+}
+.meter-adv { background: linear-gradient(90deg, #059669, #10b981); }
+.meter-dec { background: linear-gradient(90deg, #f43f5e, #be123c); }
+
+/* Single-value magnitude bar (index contribution, confidence). */
+.bar-track {
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(2, 6, 16, 0.75);
+  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.08);
+  overflow: hidden;
+}
+.bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Idle counterpart to .pulse-green — feed paused, not dead. */
+.dot-idle {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  background-color: #f59e0b;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.7);
+}
+
+/* ============ Mobile nav drawer ============ */
+@keyframes drawer-in {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(0); }
+}
+.drawer-enter {
+  animation: drawer-in 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ============ Section headings ============ */
+.section-title {
+  font-size: 0.8rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #ffffff;
+}
+.section-sub {
+  font-size: 0.7rem;
+  color: #64748b;
+}
+
 /* ============ View Transition ============ */
 @keyframes view-enter {
   from { opacity: 0; transform: translateY(12px); }
@@ -472,7 +559,12 @@ input:focus, select:focus {
   .pulse-green,
   .live-dot::after,
   .float-anim,
-  .shimmer-text {
+  .shimmer-text,
+  .drawer-enter {
     animation: none !important;
+  }
+  .bar-fill,
+  .app-sidebar {
+    transition: none !important;
   }
 }

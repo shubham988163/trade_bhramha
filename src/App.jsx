@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import HeaderTicker from './components/HeaderTicker';
 import Sidebar from './components/Sidebar';
 import MarketPulseView from './components/MarketPulseView';
@@ -9,8 +9,11 @@ import TradeFlow from './components/TradeFlow';
 import IndexMover from './components/IndexMover';
 import TradingChart from './components/TradingChart';
 import BrokerSettingsModal from './components/BrokerSettingsModal';
+import { NAV_ITEMS } from './navigation';
 import { marketSimulator } from './services/marketSimulator';
 import { fyersService } from './services/fyersService';
+
+const SIDEBAR_KEY = 'tb.sidebar.collapsed';
 
 export default function App() {
   const [snapshot, setSnapshot] = useState(marketSimulator.getSnapshot());
@@ -20,11 +23,19 @@ export default function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [fyers, setFyers] = useState(fyersService.getState());
 
+  // Desktop rail collapse (persisted) and mobile drawer (transient).
+  const [collapsed, setCollapsed] = useState(
+    () => localStorage.getItem(SIDEBAR_KEY) === '1'
+  );
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  useEffect(() => {
+    localStorage.setItem(SIDEBAR_KEY, collapsed ? '1' : '0');
+  }, [collapsed]);
+
   // Subscribe to real-time market simulator telemetry ticks
   useEffect(() => {
-    const unsubscribe = marketSimulator.subscribe((newSnapshot) => {
-      setSnapshot(newSnapshot);
-    });
+    const unsubscribe = marketSimulator.subscribe(setSnapshot);
     return () => unsubscribe();
   }, []);
 
@@ -45,6 +56,45 @@ export default function App() {
     }
   }, []);
 
+  const navigate = useCallback((tab) => {
+    setActiveTab(tab);
+    setDrawerOpen(false);
+  }, []);
+
+  // Terminal-style keyboard nav: 1–7 jump to a view, [ toggles the rail,
+  // Esc backs out of the modal/drawer. Suppressed while typing in a field.
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+      const el = document.activeElement;
+      const typing =
+        el && (el.tagName === 'INPUT' || el.tagName === 'SELECT' ||
+               el.tagName === 'TEXTAREA' || el.isContentEditable);
+
+      if (e.key === 'Escape') {
+        setIsSettingsOpen(false);
+        setDrawerOpen(false);
+        return;
+      }
+      if (typing) return;
+
+      const idx = Number(e.key);
+      if (Number.isInteger(idx) && idx >= 1 && idx <= NAV_ITEMS.length) {
+        e.preventDefault();
+        navigate(NAV_ITEMS[idx - 1].id);
+        return;
+      }
+      if (e.key === '[') {
+        e.preventDefault();
+        setCollapsed((v) => !v);
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [navigate]);
+
   // Live Fyers quotes override the simulated indices when connected
   const displayIndices = fyers.connected && fyers.liveQuotes
     ? { ...snapshot.indices, ...fyers.liveQuotes }
@@ -53,27 +103,13 @@ export default function App() {
   // Handle signal selection & router redirect to TradeX chart
   const handleSelectSignal = (sig) => {
     setSelectedSignal(sig);
-    setActiveTab('tradex');
+    navigate('tradex');
   };
 
   const renderActiveView = () => {
     switch (activeTab) {
-      case 'pulse':
-        return (
-          <MarketPulseView
-            indices={displayIndices}
-            tradeFlowLogs={snapshot.tradeFlowLogs}
-            onSelectSignal={handleSelectSignal}
-            onNavigate={setActiveTab}
-          />
-        );
       case 'optionclock':
-        return (
-          <OptionClock
-            indices={displayIndices}
-            optionChain={snapshot.optionChain}
-          />
-        );
+        return <OptionClock indices={displayIndices} optionChain={snapshot.optionChain} />;
       case 'heatmap':
         return <SectorHeatmap />;
       case 'scanners':
@@ -84,21 +120,21 @@ export default function App() {
         return <IndexMover />;
       case 'tradex':
         return <TradingChart selectedSignal={selectedSignal} liveIndices={displayIndices} />;
+      case 'pulse':
       default:
         return (
           <MarketPulseView
             indices={displayIndices}
             tradeFlowLogs={snapshot.tradeFlowLogs}
             onSelectSignal={handleSelectSignal}
-            onNavigate={setActiveTab}
+            onNavigate={navigate}
           />
         );
     }
   };
 
   return (
-    <div className="min-h-screen bg-[#090d16] text-slate-100 flex flex-col font-sans selection:bg-sky-500/30 selection:text-white">
-      {/* Top Header Ticker Bar */}
+    <div className="h-screen bg-[#090d16] text-slate-100 flex flex-col font-sans selection:bg-sky-500/30 selection:text-white">
       <HeaderTicker
         indices={displayIndices}
         isRunning={snapshot.isRunning}
@@ -107,27 +143,30 @@ export default function App() {
         setAudioEnabled={setAudioEnabled}
         fyersLive={fyers.connected && !!fyers.liveQuotes}
         fyersProfile={fyers.profile}
+        onOpenNav={() => setDrawerOpen(true)}
       />
 
-      {/* Main Content Area with Sidebar Navigation */}
-      <div className="flex flex-1 w-full overflow-hidden">
-        {/* Sidebar */}
+      {/* min-h-0 lets the scroll container size itself from the flex parent
+          instead of a hard-coded calc() that breaks when the header wraps. */}
+      <div className="flex flex-1 min-h-0 w-full">
         <Sidebar
           activeTab={activeTab}
-          setActiveTab={setActiveTab}
+          setActiveTab={navigate}
           onOpenSettings={() => setIsSettingsOpen(true)}
           fyers={fyers}
+          collapsed={collapsed}
+          onToggleCollapse={() => setCollapsed((v) => !v)}
+          drawerOpen={drawerOpen}
+          onCloseDrawer={() => setDrawerOpen(false)}
         />
 
-        {/* Dynamic View Area */}
-        <main className="flex-1 p-5 lg:p-6 overflow-y-auto max-h-[calc(100vh-90px)] scrollbar-thin">
-          <div key={activeTab} className="view-enter max-w-[1600px] mx-auto">
+        <main className="flex-1 min-w-0 overflow-y-auto scrollbar-thin p-4 sm:p-5 lg:p-6">
+          <div key={activeTab} className="view-enter max-w-[1600px] mx-auto pb-4">
             {renderActiveView()}
           </div>
         </main>
       </div>
 
-      {/* Broker API Modal */}
       <BrokerSettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
