@@ -9,15 +9,27 @@ import TradeFlow from './components/TradeFlow';
 import IndexMover from './components/IndexMover';
 import TradingChart from './components/TradingChart';
 import BrokerSettingsModal from './components/BrokerSettingsModal';
+import Landing from './components/landing/Landing';
 import { NAV_ITEMS } from './navigation';
 import { marketSimulator } from './services/marketSimulator';
 import { fyersService } from './services/fyersService';
 
 const SIDEBAR_KEY = 'tb.sidebar.collapsed';
 
+const VALID_TABS = new Set(NAV_ITEMS.map((n) => n.id));
+
+/** Read `#/app/<tab>` so a terminal view can be linked to and survives reload. */
+function readHash() {
+  const m = window.location.hash.match(/^#\/app(?:\/([a-z]+))?/i);
+  if (!m) return { inApp: false, tab: 'pulse' };
+  return { inApp: true, tab: VALID_TABS.has(m[1]) ? m[1] : 'pulse' };
+}
+
 export default function App() {
+  const initial = readHash();
+  const [inApp, setInApp] = useState(initial.inApp);
   const [snapshot, setSnapshot] = useState(marketSimulator.getSnapshot());
-  const [activeTab, setActiveTab] = useState('pulse');
+  const [activeTab, setActiveTab] = useState(initial.tab);
   const [selectedSignal, setSelectedSignal] = useState(null);
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -46,26 +58,57 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Handle redirect back from the Fyers OAuth login (?fyers=connected|error)
+  // Handle redirect back from the Fyers OAuth login (?fyers=connected|error).
+  // Land straight in the terminal — the user was mid-connect, not browsing.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('fyers')) {
       fyersService.refreshStatus();
+      setInApp(true);
       setIsSettingsOpen(true);
-      window.history.replaceState({}, '', window.location.pathname);
+      window.history.replaceState({}, '', `${window.location.pathname}#/app/pulse`);
     }
+  }, []);
+
+  // Keep the hash in sync both ways so Back/Forward move between the
+  // marketing site and the terminal as the user expects.
+  useEffect(() => {
+    const onHashChange = () => {
+      const h = readHash();
+      setInApp(h.inApp);
+      if (h.inApp) setActiveTab(h.tab);
+    };
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
 
   const navigate = useCallback((tab) => {
     setActiveTab(tab);
     setDrawerOpen(false);
+    if (window.location.hash !== `#/app/${tab}`) {
+      window.history.pushState(null, '', `#/app/${tab}`);
+    }
+  }, []);
+
+  const enterApp = useCallback((tab = 'pulse') => {
+    setInApp(true);
+    setActiveTab(tab);
+    window.history.pushState(null, '', `#/app/${tab}`);
+    window.scrollTo(0, 0);
+  }, []);
+
+  const exitToSite = useCallback(() => {
+    setInApp(false);
+    setDrawerOpen(false);
+    window.history.pushState(null, '', window.location.pathname);
+    window.scrollTo(0, 0);
   }, []);
 
   // Terminal-style keyboard nav: 1–7 jump to a view, [ toggles the rail,
   // Esc backs out of the modal/drawer. Suppressed while typing in a field.
   useEffect(() => {
     const onKeyDown = (e) => {
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (!inApp || e.metaKey || e.ctrlKey || e.altKey) return;
 
       const el = document.activeElement;
       const typing =
@@ -93,7 +136,7 @@ export default function App() {
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [navigate]);
+  }, [navigate, inApp]);
 
   // Live Fyers quotes override the simulated indices when connected
   const displayIndices = fyers.connected && fyers.liveQuotes
@@ -133,6 +176,8 @@ export default function App() {
     }
   };
 
+  if (!inApp) return <Landing onEnter={enterApp} />;
+
   return (
     <div className="h-screen bg-[#090d16] text-slate-100 flex flex-col font-sans selection:bg-sky-500/30 selection:text-white">
       <HeaderTicker
@@ -158,6 +203,7 @@ export default function App() {
           onToggleCollapse={() => setCollapsed((v) => !v)}
           drawerOpen={drawerOpen}
           onCloseDrawer={() => setDrawerOpen(false)}
+          onExitToSite={exitToSite}
         />
 
         <main className="flex-1 min-w-0 overflow-y-auto scrollbar-thin p-4 sm:p-5 lg:p-6">

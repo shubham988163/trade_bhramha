@@ -11,11 +11,11 @@ import {
  * along for free.
  */
 export const NAV_ITEMS = [
-  { id: 'pulse', label: 'Market Pulse', short: 'Pulse', icon: LayoutDashboard, badge: 'LIVE' },
-  { id: 'optionclock', label: 'Option Chain', short: 'Chain', icon: Compass, badge: 'HOT' },
-  { id: 'heatmap', label: 'Sector Heatmap', short: 'Sectors', icon: Grid },
-  { id: 'scanners', label: 'AI Scanners', short: 'Signals', icon: Zap, badge: '5' },
-  { id: 'tradeflow', label: 'Trade Flow', short: 'Flow', icon: Activity },
-  { id: 'indexmover', label: 'Index Movers', short: 'Movers', icon: BarChart2 },
-  { id: 'tradex', label: 'TradeX Chart', short: 'TradeX', icon: CandlestickChart, highlight: true },
+  { id: 'pulse', label: 'TradeBrahmand', short: 'Pulse', icon: LayoutDashboard, badge: 'LIVE' },
+  { id: 'optionclock', label: 'OptionClock', short: 'Chain', icon: Compass, badge: 'HOT' },
+  { id: 'heatmap', label: 'MarketWise', short: 'Sectors', icon: Grid },
+  { id: 'scanners', label: 'StockOn', short: 'Signals', icon: Zap, badge: '5' },
+  { id: 'tradeflow', label: 'TradeFlow', short: 'Flow', icon: Activity },
+  { id: 'indexmover', label: 'IndexMover', short: 'Movers', icon: BarChart2 },
+  { id: 'tradex', label: 'TradeX', short: 'TradeX', icon: CandlestickChart, highlight: true },
 ];

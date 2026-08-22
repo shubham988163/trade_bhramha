@@ -1,5 +1,5 @@
 import React from 'react';
-import { Settings, Wifi, WifiOff, PanelLeftClose, PanelLeftOpen, X } from 'lucide-react';
+import { Settings, Wifi, WifiOff, PanelLeftClose, PanelLeftOpen, X, ArrowLeft } from 'lucide-react';
 import { NAV_ITEMS } from '../navigation';
 
 function NavList({ activeTab, setActiveTab, collapsed }) {
@@ -101,10 +101,21 @@ function FeedStatus({ fyers, collapsed }) {
   );
 }
 
-function SidebarBody({ activeTab, setActiveTab, onOpenSettings, fyers, collapsed, onToggleCollapse, isDrawer }) {
+function SidebarBody({ activeTab, setActiveTab, onOpenSettings, fyers, collapsed, onToggleCollapse, isDrawer, onExitToSite }) {
   return (
     <>
       <div className="space-y-1.5 flex-1 min-h-0 overflow-y-auto scrollbar-thin">
+        <button
+          onClick={onExitToSite}
+          title="Back to tradebrahma.in"
+          className={`w-full flex items-center gap-2 py-2 rounded-lg text-[11px] font-semibold text-slate-500 hover:text-sky-400 hover:bg-white/5 transition-colors focus-ring ${
+            collapsed ? 'justify-center px-0' : 'px-2'
+          }`}
+        >
+          <ArrowLeft style={{ width: 13, height: 13 }} className="shrink-0" />
+          {!collapsed && <span>Back to site</span>}
+        </button>
+
         <div className={`flex items-center gap-2 py-2 ${collapsed ? 'justify-center' : 'px-2 justify-between'}`}>
           {!collapsed && (
             <span className="text-[10px] uppercase font-mono tracking-widest text-slate-500 font-bold">
@@ -148,7 +159,7 @@ function SidebarBody({ activeTab, setActiveTab, onOpenSettings, fyers, collapsed
 
 export default function Sidebar({
   activeTab, setActiveTab, onOpenSettings, fyers,
-  collapsed, onToggleCollapse, drawerOpen, onCloseDrawer,
+  collapsed, onToggleCollapse, drawerOpen, onCloseDrawer, onExitToSite,
 }) {
   return (
     <>
@@ -165,6 +176,7 @@ export default function Sidebar({
           fyers={fyers}
           collapsed={collapsed}
           onToggleCollapse={onToggleCollapse}
+          onExitToSite={onExitToSite}
         />
       </aside>
 
@@ -191,6 +203,7 @@ export default function Sidebar({
               fyers={fyers}
               collapsed={false}
               isDrawer
+              onExitToSite={onExitToSite}
             />
           </aside>
         </div>
