@@ -248,9 +248,15 @@ class FyersService {
 
   /** Fetch option chain data for PCR calculation */
   async fetchOptionChain(symbol = 'NSE:NIFTY50-INDEX') {
-    if (this.isThrottled()) return;
+    if (!this.connected || this.isThrottled()) return;
     try {
       const data = await api(`/option-chain?symbol=${encodeURIComponent(symbol)}`);
+      if (data.connected === false || data.expired) {
+        this.connected = false;
+        this.stopPolling();
+        this.notify();
+        return;
+      }
       if (data.s === 'ok' && Array.isArray(data.d)) {
         this.optionChain = data.d;
         this.notify();

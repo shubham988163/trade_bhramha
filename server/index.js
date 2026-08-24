@@ -301,35 +301,45 @@ app.get('/api/fyers/history', async (req, res) => {
 // Fetch live User Funds / Margin from Fyers
 app.get('/api/fyers/funds', async (req, res) => {
   if (!session.accessToken) {
-    return res.status(401).json({ error: 'Not connected to Fyers' });
+    return res.json({ s: 'error', connected: false, error: 'Not connected to Fyers' });
   }
   try {
     const resp = await fetch(`${FYERS_API_BASE}/funds`, { headers: authHeader() });
     const data = await resp.json();
+    if (data.code === -16 || data.code === -8 || resp.status === 401) {
+      session.accessToken = null;
+      persistSession();
+      return res.json({ s: 'error', connected: false, expired: true, error: 'Session expired' });
+    }
     res.json(data);
   } catch (err) {
-    res.status(502).json({ error: 'Fyers funds upstream error', detail: String(err) });
+    res.json({ s: 'error', error: 'Fyers funds upstream error', detail: String(err) });
   }
 });
 
 // Fetch live User Positions from Fyers
 app.get('/api/fyers/positions', async (req, res) => {
   if (!session.accessToken) {
-    return res.status(401).json({ error: 'Not connected to Fyers' });
+    return res.json({ s: 'error', connected: false, error: 'Not connected to Fyers' });
   }
   try {
     const resp = await fetch(`${FYERS_API_BASE}/positions`, { headers: authHeader() });
     const data = await resp.json();
+    if (data.code === -16 || data.code === -8 || resp.status === 401) {
+      session.accessToken = null;
+      persistSession();
+      return res.json({ s: 'error', connected: false, expired: true, error: 'Session expired' });
+    }
     res.json(data);
   } catch (err) {
-    res.status(502).json({ error: 'Fyers positions upstream error', detail: String(err) });
+    res.json({ s: 'error', error: 'Fyers positions upstream error', detail: String(err) });
   }
 });
 
 // Fetch option chain data for PCR calculation
 app.get('/api/fyers/option-chain', async (req, res) => {
   if (!session.accessToken) {
-    return res.status(401).json({ error: 'Not connected to Fyers' });
+    return res.json({ s: 'error', connected: false, error: 'Not connected to Fyers' });
   }
 
   const symbol = req.query.symbol || 'NSE:NIFTY50-INDEX';
@@ -339,8 +349,14 @@ app.get('/api/fyers/option-chain', async (req, res) => {
     const resp = await fetch(url, { headers: authHeader() });
     const data = await resp.json();
 
-    if (data.s !== 'ok' || !data.d) {
-      return res.status(502).json({ error: 'Fyers option chain error', detail: data });
+    if (data.code === -16 || data.code === -8 || resp.status === 401) {
+      session.accessToken = null;
+      persistSession();
+      return res.json({ s: 'error', connected: false, expired: true, error: 'Session expired' });
+    }
+
+    if (data.s !== 'ok' || !Array.isArray(data.d)) {
+      return res.json({ s: 'error', error: 'Fyers option chain error', detail: data });
     }
 
     // Format option chain data: extract Call OI and Put OI
@@ -366,7 +382,7 @@ app.get('/api/fyers/option-chain', async (req, res) => {
 
     res.json({ s: 'ok', d: optionChain, symbol });
   } catch (err) {
-    res.status(502).json({ error: 'Fyers option chain upstream error', detail: String(err) });
+    res.json({ s: 'error', error: 'Fyers option chain upstream error', detail: String(err) });
   }
 });
 
