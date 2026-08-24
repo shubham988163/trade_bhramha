@@ -1,11 +1,17 @@
 // Market Simulation Engine — fallback data source when no broker is connected
 
+import { computeIndexMoverState, RAW_INDEX_CONSTITUENTS } from './indexMoverData';
+
+const INITIAL_NIFTY_STATE = computeIndexMoverState(RAW_INDEX_CONSTITUENTS.nifty);
+const INITIAL_BANKNIFTY_STATE = computeIndexMoverState(RAW_INDEX_CONSTITUENTS.bankNifty);
+const INITIAL_SENSEX_STATE = computeIndexMoverState(RAW_INDEX_CONSTITUENTS.sensex);
+
 export const INITIAL_INDICES = {
-  nifty: { symbol: 'NIFTY 50', price: 24582.40, change: 146.50, pChange: 0.60, high: 24610.00, low: 24420.10 },
-  bankNifty: { symbol: 'BANK NIFTY', price: 52140.80, change: 312.40, pChange: 0.60, high: 52280.00, low: 51800.50 },
-  sensex: { symbol: 'SENSEX', price: 80640.20, change: 425.10, pChange: 0.53, high: 80750.00, low: 80210.00 },
+  nifty: { symbol: 'NIFTY 50', price: INITIAL_NIFTY_STATE.indexPrice, change: 146.50, pChange: 0.60, high: 24610.00, low: 24420.10 },
+  bankNifty: { symbol: 'BANK NIFTY', price: INITIAL_BANKNIFTY_STATE.indexPrice, change: 312.40, pChange: 0.60, high: 52280.00, low: 51800.50 },
+  sensex: { symbol: 'SENSEX', price: INITIAL_SENSEX_STATE.indexPrice, change: 425.10, pChange: 0.53, high: 80750.00, low: 80210.00 },
   indiaVix: { symbol: 'INDIA VIX', price: 13.24, change: -0.46, pChange: -3.36, high: 13.90, low: 13.10 },
-  giftNifty: { symbol: 'GIFT NIFTY', price: 24625.00, change: 175.00, pChange: 0.72, high: 24650.00, low: 24450.00 },
+  giftNifty: { symbol: 'GIFT NIFTY', price: INITIAL_NIFTY_STATE.indexPrice + 42, change: 175.00, pChange: 0.72, high: 24650.00, low: 24450.00 },
 };
 
 export const SECTOR_DATA = [
@@ -109,23 +115,12 @@ export const INITIAL_AI_SIGNALS = [
   },
 ];
 
+export { RAW_INDEX_CONSTITUENTS, computeIndexMoverState };
+
 export const INDEX_MOVERS_DATA = {
-  nifty: {
-    positive: [
-      { symbol: 'RELIANCE', points: 38.4, pChange: 1.8, category: 'Energy' },
-      { symbol: 'HDFCBANK', points: 29.2, pChange: 1.4, category: 'Banking' },
-      { symbol: 'INFY', points: 26.5, pChange: 2.1, category: 'IT' },
-      { symbol: 'ICICIBANK', points: 19.8, pChange: 1.3, category: 'Banking' },
-      { symbol: 'TCS', points: 14.1, pChange: 1.1, category: 'IT' },
-    ],
-    negative: [
-      { symbol: 'TATAMOTORS', points: -9.5, pChange: -1.2, category: 'Auto' },
-      { symbol: 'ITC', points: -6.2, pChange: -0.5, category: 'FMCG' },
-      { symbol: 'BAJFINANCE', points: -5.1, pChange: -0.7, category: 'Finance' },
-      { symbol: 'KOTAKBANK', points: -4.8, pChange: -0.6, category: 'Banking' },
-      { symbol: 'SUNPHARMA', points: -2.3, pChange: -0.3, category: 'Pharma' },
-    ]
-  }
+  nifty: computeIndexMoverState(RAW_INDEX_CONSTITUENTS.nifty),
+  bankNifty: computeIndexMoverState(RAW_INDEX_CONSTITUENTS.bankNifty),
+  sensex: computeIndexMoverState(RAW_INDEX_CONSTITUENTS.sensex)
 };
 
 export const INSTITUTIONAL_FLOW = {
@@ -189,6 +184,7 @@ class MarketSimulatorService {
     this.isRunning = true;
     this.timer = null;
     this.indices = { ...INITIAL_INDICES };
+    this.rawIndexMovers = JSON.parse(JSON.stringify(RAW_INDEX_CONSTITUENTS));
     this.optionChain = generateOptionChain(this.indices.nifty.price);
     
     this.tradeFlowLogs = [
@@ -213,10 +209,34 @@ class MarketSimulatorService {
   }
 
   getSnapshot() {
+    const niftyState = computeIndexMoverState(this.rawIndexMovers.nifty);
+    const bankNiftyState = computeIndexMoverState(this.rawIndexMovers.bankNifty);
+    const sensexState = computeIndexMoverState(this.rawIndexMovers.sensex);
+    
+    // Override indexPrice to match the simulated indices (INITIAL_INDICES)
+    // This ensures consistency between Header ticker and IndexMover
+    niftyState.indexPrice = this.indices.nifty.price;
+    bankNiftyState.indexPrice = this.indices.bankNifty.price;
+    sensexState.indexPrice = this.indices.sensex.price;
+    
+    // Recalculate pChange based on the simulated price
+    const niftyBasePrice = this.rawIndexMovers.nifty.basePrice;
+    const bankBasePrice = this.rawIndexMovers.bankNifty.basePrice;
+    const sensexBasePrice = this.rawIndexMovers.sensex.basePrice;
+    
+    niftyState.pChange = Math.round(((this.indices.nifty.price - niftyBasePrice) / niftyBasePrice) * 100 * 100) / 100;
+    bankNiftyState.pChange = Math.round(((this.indices.bankNifty.price - bankBasePrice) / bankBasePrice) * 100 * 100) / 100;
+    sensexState.pChange = Math.round(((this.indices.sensex.price - sensexBasePrice) / sensexBasePrice) * 100 * 100) / 100;
+
     return {
       indices: { ...this.indices },
       optionChain: [...this.optionChain],
       tradeFlowLogs: [...this.tradeFlowLogs],
+      indexMovers: {
+        nifty: niftyState,
+        bankNifty: bankNiftyState,
+        sensex: sensexState
+      },
       isRunning: this.isRunning
     };
   }
@@ -246,6 +266,18 @@ class MarketSimulatorService {
       const bankDelta = (Math.random() - 0.47) * 9.0;
       this.indices.bankNifty.price = Math.round((this.indices.bankNifty.price + bankDelta) * 100) / 100;
       this.indices.bankNifty.change = Math.round((this.indices.bankNifty.change + bankDelta) * 100) / 100;
+
+      // Drift index mover constituent stocks slightly
+      ['nifty', 'bankNifty', 'sensex'].forEach(idxKey => {
+        const rawIdx = this.rawIndexMovers[idxKey];
+        if (!rawIdx) return;
+        const randomConstituent = rawIdx.constituents[Math.floor(Math.random() * rawIdx.constituents.length)];
+        if (randomConstituent) {
+          const ptShift = Math.round((Math.random() - 0.49) * 0.4 * 10) / 10;
+          randomConstituent.points = Math.round((randomConstituent.points + ptShift) * 10) / 10;
+          randomConstituent.pChange = Math.round((randomConstituent.pChange + (ptShift * 0.15)) * 100) / 100;
+        }
+      });
 
       // Occasionally push a new Trade Flow order log
       if (Math.random() > 0.6) {

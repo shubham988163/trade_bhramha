@@ -162,7 +162,14 @@ export default function App() {
       case 'tradeflow':
         return <TradeFlow tradeFlowLogs={snapshot.tradeFlowLogs} />;
       case 'indexmover':
-        return <IndexMover />;
+        return (
+          <IndexMover
+            indexMovers={snapshot.indexMovers}
+            isRunning={snapshot.isRunning}
+            onNavigate={setActiveTab}
+            onSelectSignal={handleSelectSignal}
+          />
+        );
       case 'tradex':
         return <TradingChart selectedSignal={selectedSignal} liveIndices={displayIndices} />;
       case 'pulse':
