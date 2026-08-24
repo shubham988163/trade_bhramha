@@ -109,6 +109,103 @@ export const RAW_INDEX_CONSTITUENTS = {
   }
 };
 
+/** Every distinct constituent ticker across all indices, for the quote poller. */
+export const ALL_CONSTITUENT_SYMBOLS = [
+  ...new Set(
+    Object.values(RAW_INDEX_CONSTITUENTS).flatMap(idx =>
+      idx.constituents.map(c => c.symbol)
+    )
+  ),
+];
+
+/** Which index key maps to which live-quote key in fyersService. */
+export const INDEX_LIVE_KEYS = { nifty: 'nifty', bankNifty: 'bankNifty', sensex: 'sensex' };
+
+/**
+ * Rebuild an index-mover state from live broker quotes.
+ *
+ * Points contribution is derived rather than taken from the static table:
+ * a constituent with weight w% moving pChange% shifts the index by
+ * `prevClose × w/100 × pChange/100` points. The index level and net change
+ * come straight from the index quote (authoritative) rather than from the sum
+ * of contributions, since we only model a subset of each index's members.
+ *
+ * Falls back to `baseState` for any constituent with no live quote, so a
+ * partially-available feed degrades per-row instead of wholesale.
+ */
+export function applyLiveIndexData(rawIndexData, baseState, liveQuotes, liveIndexQuote) {
+  if (!liveQuotes && !liveIndexQuote) return baseState;
+
+  const indexPrice = Number(liveIndexQuote?.price) || baseState.indexPrice;
+  const indexChange = Number(liveIndexQuote?.change);
+  const prevClose = Number.isFinite(indexChange) && indexChange !== 0
+    ? indexPrice - indexChange
+    : rawIndexData.basePrice;
+
+  let liveCount = 0;
+  const constituents = rawIndexData.constituents.map((c) => {
+    const q = liveQuotes?.[c.symbol];
+    if (!q || !Number(q.price)) return { ...c, isGainer: c.points >= 0, isLive: false };
+
+    liveCount += 1;
+    const pChange = Number(q.pChange) || 0;
+    const points = Math.round(prevClose * (c.weight / 100) * (pChange / 100) * 100) / 100;
+    return {
+      ...c,
+      price: Number(q.price),
+      pChange: Math.round(pChange * 100) / 100,
+      points,
+      isGainer: points >= 0,
+      isLive: true,
+    };
+  });
+
+  // No constituent resolved — keep the simulated rows, but still show the real
+  // index level so the header and this view cannot disagree.
+  if (liveCount === 0) {
+    return liveIndexQuote
+      ? {
+          ...baseState,
+          indexPrice,
+          netPoints: Number.isFinite(indexChange) ? indexChange : baseState.netPoints,
+          pChange: Number(liveIndexQuote.pChange) || baseState.pChange,
+        }
+      : baseState;
+  }
+
+  const gainers = constituents.filter(c => c.isGainer).sort((a, b) => b.points - a.points);
+  const losers = constituents.filter(c => !c.isGainer).sort((a, b) => a.points - b.points);
+  const totalGainPoints = Math.round(gainers.reduce((n, g) => n + g.points, 0) * 10) / 10;
+  const totalLossPoints = Math.round(losers.reduce((n, l) => n + Math.abs(l.points), 0) * 10) / 10;
+
+  const withImpact = (list, total) => list.map(s => ({
+    ...s,
+    impactPct: total > 0 ? Math.round((Math.abs(s.points) / total) * 100) : 0,
+  }));
+  const g = withImpact(gainers, totalGainPoints);
+  const l = withImpact(losers, totalLossPoints);
+
+  return {
+    symbol: rawIndexData.symbol,
+    indexPrice,
+    netPoints: Number.isFinite(indexChange)
+      ? Math.round(indexChange * 100) / 100
+      : Math.round((totalGainPoints - totalLossPoints) * 100) / 100,
+    pChange: Number.isFinite(Number(liveIndexQuote?.pChange))
+      ? Number(liveIndexQuote.pChange)
+      : baseState.pChange,
+    gainersCount: g.length,
+    losersCount: l.length,
+    totalGainPoints,
+    totalLossPoints,
+    gainers: g,
+    losers: l,
+    allConstituents: [...g, ...l],
+    liveConstituents: liveCount,
+    isLive: true,
+  };
+}
+
 /**
  * Calculates derived Index Mover metrics for a given dataset
  */
