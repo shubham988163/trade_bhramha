@@ -4,7 +4,7 @@ import {
   Info, ExternalLink, Activity, ChevronDown
 } from 'lucide-react';
 import { INDEX_MOVERS_DATA } from '../services/marketSimulator';
-import { pct, signed } from '../utils/format';
+import { num, pct, signed } from '../utils/format';
 
 /** One contribution row: name, signed points, and a magnitude bar. */
 function MoverRow({ stock, maxPoints, positive }) {
@@ -44,6 +44,21 @@ export default function IndexMover({ indexMovers, isRunning, onNavigate, onSelec
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTabFilter, setActiveTabFilter] = useState('all'); // 'all', 'gainers', 'losers'
   const [hoveredStock, setHoveredStock] = useState(null);
+
+  // Escape closes whichever overlay is open. App.jsx's global handler only
+  // knows about the broker modal and the mobile drawer, so this view has to
+  // dismiss its own — otherwise the backdrop traps every subsequent click.
+  useEffect(() => {
+    if (!isHowToUseOpen && !selectedStock) return;
+    const onKeyDown = (e) => {
+      if (e.key !== 'Escape') return;
+      e.stopPropagation();
+      setIsHowToUseOpen(false);
+      setSelectedStock(null);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isHowToUseOpen, selectedStock]);
 
   const liveData = indexMovers?.[selectedIdxKey];
   const activeData = (liveData && typeof liveData.indexPrice === 'number' && liveData.allConstituents?.length > 0)
@@ -173,7 +188,7 @@ export default function IndexMover({ indexMovers, isRunning, onNavigate, onSelec
       <div className="glass-card p-6 border border-slate-800/80 bg-[#0d1424]/90 rounded-2xl text-center space-y-4 shadow-xl">
         <div className="space-y-1">
           <h2 className="text-2xl font-black tracking-wide text-white uppercase font-mono">
-            {symbol} <span className="text-3xl font-extrabold ml-3 text-slate-100">{indexPrice.toLocaleString('en-IN', { minimumFractionDigits: 1 })}</span>
+            {symbol} <span className="text-3xl font-extrabold ml-3 text-slate-100">{num(indexPrice)}</span>
           </h2>
           <div className="flex items-center justify-center gap-3 text-sm font-mono font-bold">
             <span className={`flex items-center gap-1 px-2.5 py-0.5 rounded-lg ${netPoints >= 0 ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'}`}>
@@ -513,8 +528,16 @@ export default function IndexMover({ indexMovers, isRunning, onNavigate, onSelec
 
       {/* 5. How to Use Modal */}
       {isHowToUseOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
-          <div className="glass-card max-w-xl w-full p-6 border border-slate-700 bg-[#0d1424] rounded-2xl shadow-2xl space-y-5 text-slate-200">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in"
+          role="dialog"
+          aria-modal="true"
+          aria-label="How index movers work"
+          // Dismiss on backdrop click. The guard keeps clicks inside the panel
+          // from bubbling up and closing it.
+          onMouseDown={(e) => { if (e.target === e.currentTarget) setIsHowToUseOpen(false); }}
+        >
+          <div className="glass-card max-w-xl w-full p-6 border border-slate-700 bg-[#0d1424] rounded-2xl shadow-2xl space-y-5 text-slate-200 max-h-[90vh] overflow-y-auto scrollbar-thin">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div className="flex items-center gap-2.5">
                 <Info className="w-5 h-5 text-sky-400" />

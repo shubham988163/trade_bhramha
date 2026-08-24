@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import HeaderTicker from './components/HeaderTicker';
 import Sidebar from './components/Sidebar';
 import MarketPulseView from './components/MarketPulseView';
@@ -12,6 +12,7 @@ import BrokerSettingsModal from './components/BrokerSettingsModal';
 import Landing from './components/landing/Landing';
 import { NAV_ITEMS } from './navigation';
 import { marketSimulator } from './services/marketSimulator';
+import { RAW_INDEX_CONSTITUENTS, applyLiveIndexData } from './services/indexMoverData';
 import { fyersService } from './services/fyersService';
 
 const SIDEBAR_KEY = 'tb.sidebar.collapsed';
@@ -145,6 +146,23 @@ export default function App() {
     ? { ...snapshot.indices, ...fyers.liveIndices }
     : snapshot.indices;
 
+  // IndexMover reads its own slice of the snapshot, so the live overlay has to
+  // be applied here too — otherwise it keeps rendering the static constituent
+  // table and its index level disagrees with the header ticker.
+  const displayIndexMovers = useMemo(() => {
+    const base = snapshot.indexMovers;
+    if (!base || !fyers.connected || !fyers.liveQuotes) return base;
+
+    const out = {};
+    for (const key of Object.keys(base)) {
+      const raw = RAW_INDEX_CONSTITUENTS[key];
+      out[key] = raw
+        ? applyLiveIndexData(raw, base[key], fyers.liveQuotes, fyers.liveIndices?.[key])
+        : base[key];
+    }
+    return out;
+  }, [snapshot.indexMovers, fyers.connected, fyers.liveQuotes, fyers.liveIndices]);
+
   // Handle signal selection & router redirect to TradeX chart
   const handleSelectSignal = (sig) => {
     setSelectedSignal(sig);
@@ -164,9 +182,9 @@ export default function App() {
       case 'indexmover':
         return (
           <IndexMover
-            indexMovers={snapshot.indexMovers}
+            indexMovers={displayIndexMovers}
             isRunning={snapshot.isRunning}
-            onNavigate={setActiveTab}
+            onNavigate={navigate}
             onSelectSignal={handleSelectSignal}
           />
         );
@@ -178,6 +196,7 @@ export default function App() {
           <MarketPulseView
             indices={displayIndices}
             tradeFlowLogs={snapshot.tradeFlowLogs}
+            optionChain={snapshot.optionChain}
             onSelectSignal={handleSelectSignal}
             onNavigate={navigate}
           />

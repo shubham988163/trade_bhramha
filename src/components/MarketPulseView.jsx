@@ -1,7 +1,49 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Zap, ArrowUpRight, ArrowDownRight, BarChart3, Sparkles, Activity } from 'lucide-react';
-import { SECTOR_DATA, INITIAL_AI_SIGNALS } from '../services/marketSimulator';
+import { SECTOR_DATA, INITIAL_AI_SIGNALS, INSTITUTIONAL_FLOW } from '../services/marketSimulator';
+import {
+  computeOptionMetrics, computeBullScore, computeSignalStats, computeInstitutionalFlow,
+} from '../services/marketAnalytics';
 import { num, pct, inrPrice, signed } from '../utils/format';
+
+const TONE = {
+  bull: { text: 'text-emerald-400', ring: '#10b981', badge: 'badge-bull' },
+  bear: { text: 'text-rose-400', ring: '#f43f5e', badge: 'badge-bear' },
+  neutral: { text: 'text-slate-300', ring: '#94a3b8', badge: 'badge' },
+};
+
+/**
+ * Radial score dial. The arc length encodes the score, so the ring is a second
+ * read of the number rather than fixed decoration.
+ */
+function ScoreDial({ score, tone, size = 56 }) {
+  const stroke = 4;
+  const r = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * r;
+  const color = TONE[tone]?.ring ?? TONE.neutral.ring;
+
+  return (
+    <div className="relative shrink-0" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="-rotate-90" aria-hidden="true">
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(148,163,184,0.18)" strokeWidth={stroke} />
+        <circle
+          cx={size / 2} cy={size / 2} r={r} fill="none"
+          stroke={color} strokeWidth={stroke} strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={circumference * (1 - score / 100)}
+          style={{ transition: 'stroke-dashoffset .6s cubic-bezier(.22,1,.36,1)' }}
+        />
+      </svg>
+      <span
+        className={`absolute inset-0 flex items-center justify-center font-extrabold text-base ${TONE[tone]?.text ?? ''}`}
+        role="img"
+        aria-label={`Bull score ${score} out of 100`}
+      >
+        {score}
+      </span>
+    </div>
+  );
+}
 
 /** Advance/decline meter — segment widths always sum to 100% of the track. */
 function BreadthMeter({ advancing, declining }) {
@@ -28,9 +70,27 @@ function Metric({ label, value, tone }) {
   );
 }
 
-export default function MarketPulseView({ indices, tradeFlowLogs, onSelectSignal, onNavigate }) {
+export default function MarketPulseView({
+  indices, tradeFlowLogs, optionChain, onSelectSignal, onNavigate,
+}) {
   const topSectors = [...SECTOR_DATA].sort((a, b) => b.pChange - a.pChange).slice(0, 6);
   const recentLogs = tradeFlowLogs ? tradeFlowLogs.slice(0, 7) : [];
+
+  // Every headline below is computed from the data already on this screen.
+  // These were previously hardcoded literals (68% / 79.4% / PCR 1.24 / max
+  // pain 24,550), so they never moved and could contradict the live feed.
+  const optionMetrics = useMemo(
+    () => computeOptionMetrics(optionChain, indices?.nifty?.price),
+    [optionChain, indices?.nifty?.price]
+  );
+
+  const bull = useMemo(
+    () => computeBullScore({ indices, sectors: SECTOR_DATA, optionMetrics }),
+    [indices, optionMetrics]
+  );
+
+  const stats = useMemo(() => computeSignalStats(INITIAL_AI_SIGNALS), []);
+  const flow = useMemo(() => computeInstitutionalFlow(INSTITUTIONAL_FLOW), []);
 
   // Market-wide breadth, derived from the sector constituents rather than
   // hard-coded, so the headline always agrees with the sector list below it.
@@ -57,7 +117,11 @@ export default function MarketPulseView({ indices, tradeFlowLogs, onSelectSignal
               <span className="badge-cyan font-mono text-[10px] uppercase tracking-widest flex items-center gap-1 font-bold">
                 <Sparkles style={{ width: 12, height: 12 }} /> Institutional Quant Engine
               </span>
-              <span className="badge-bull font-mono text-[10px]">BULLISH MOMENTUM</span>
+              {bull && (
+                <span className={`${TONE[bull.tone].badge} font-mono text-[10px]`}>
+                  {bull.label.toUpperCase()}
+                </span>
+              )}
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight shimmer-text">
               AI Market Pulse
@@ -68,18 +132,62 @@ export default function MarketPulseView({ indices, tradeFlowLogs, onSelectSignal
             </p>
           </div>
 
-          <div className="bg-slate-900/90 p-4 rounded-2xl border border-slate-800 flex items-center gap-4 font-mono shadow-2xl shrink-0">
-            <div className="w-14 h-14 rounded-full border-[3px] border-emerald-500/80 flex items-center justify-center bg-emerald-950/50 text-emerald-400 font-extrabold text-lg shadow-lg shadow-emerald-500/20">
-              68%
+          {bull && (
+            <div className="bg-slate-900/90 p-4 rounded-2xl border border-slate-800 shadow-2xl shrink-0 w-full sm:w-auto sm:max-w-sm">
+              <div className="flex items-center gap-4 font-mono">
+                <ScoreDial score={bull.score} tone={bull.tone} />
+                <div className="min-w-0">
+                  <span className="text-[9px] text-slate-500 uppercase tracking-widest block font-sans font-bold">
+                    AI Bull Score
+                  </span>
+                  <span className={`text-sm font-bold block ${TONE[bull.tone].text}`}>
+                    {bull.label}
+                  </span>
+                  {stats && (
+                    <span className="text-[10px] text-slate-500 block">
+                      {stats.expectedWinRate != null && (
+                        <>Est. win rate {stats.expectedWinRate.toFixed(1)}%</>
+                      )}
+                      {stats.closed > 0 && (
+                        <> · {stats.wins}/{stats.closed} closed</>
+                      )}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* What the score is made of, so the number is auditable rather
+                  than a black box. */}
+              <div className="mt-3 pt-3 border-t border-slate-800 space-y-1.5">
+                {bull.components.map((c) => (
+                  <div key={c.key} className="flex items-center gap-2">
+                    <span className="text-[9px] text-slate-500 w-[104px] shrink-0 truncate">
+                      {c.label}
+                    </span>
+                    <div className="bar-track flex-1" style={{ height: 4 }}>
+                      <div
+                        className="bar-fill"
+                        style={{
+                          width: `${c.pct}%`,
+                          background: c.pct >= 55
+                            ? 'linear-gradient(90deg,#059669,#34d399)'
+                            : c.pct <= 45
+                            ? 'linear-gradient(90deg,#be123c,#fb7185)'
+                            : 'linear-gradient(90deg,#64748b,#94a3b8)',
+                        }}
+                      />
+                    </div>
+                    <span className="text-[9px] font-mono text-slate-400 w-7 text-right shrink-0">
+                      {c.pct}
+                    </span>
+                    <span className="text-[8px] font-mono text-slate-600 w-7 text-right shrink-0">
+                      {c.weight}%
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
-            <div>
-              <span className="text-[9px] text-slate-500 uppercase tracking-widest block font-sans font-bold">
-                AI Bull Score
-              </span>
-              <span className="text-sm font-bold text-emerald-400 block">Strong Buying</span>
-              <span className="text-[10px] text-slate-500 block">Win rate 79.4%</span>
-            </div>
-          </div>
+          )}
         </div>
       </div>
 
@@ -102,19 +210,33 @@ export default function MarketPulseView({ indices, tradeFlowLogs, onSelectSignal
         <div className="pro-card card-green-accent p-4">
           <div className="flex items-center justify-between mb-2">
             <span className="text-[10px] text-slate-500 font-sans font-semibold uppercase tracking-wider">FII + DII Flow</span>
-            <span className="badge-bull text-[9px]">NET BUY</span>
+            <span className={`text-[9px] ${flow?.tone === 'bull' ? 'badge-bull' : 'badge-bear'}`}>
+              {flow?.label ?? '—'}
+            </span>
           </div>
-          <div className="text-2xl font-black text-emerald-400 glow-green">+₹2,280 Cr</div>
-          <div className="text-[10px] text-slate-500 mt-1 font-sans">Institutional net buying</div>
+          <div className={`text-2xl font-black ${flow && flow.net >= 0 ? 'text-emerald-400 glow-green' : 'text-rose-400 glow-red'}`}>
+            {flow ? `${flow.net >= 0 ? '+' : '-'}₹${num(Math.abs(flow.net), 0)} Cr` : '—'}
+          </div>
+          <div className="text-[10px] text-slate-500 mt-1 font-sans">
+            {flow ? `FII ${signed(flow.fii, 0)} · DII ${signed(flow.dii, 0)} Cr` : 'No flow data'}
+          </div>
         </div>
 
         <div className="pro-card card-amber-accent p-4">
           <div className="flex items-center justify-between mb-2">
             <span className="text-[10px] text-slate-500 font-sans font-semibold uppercase tracking-wider">Option PCR</span>
-            <span className="badge-amber text-[9px]">MAX PAIN 24,550</span>
+            <span className="badge-amber text-[9px]">
+              {optionMetrics?.maxPain != null ? `MAX PAIN ${num(optionMetrics.maxPain, 0)}` : 'NO CHAIN'}
+            </span>
           </div>
-          <div className="text-2xl font-black text-amber-400">1.24</div>
-          <div className="text-[10px] text-slate-500 mt-1 font-sans">ATM IV 13.2% · low VIX</div>
+          <div className="text-2xl font-black text-amber-400">
+            {optionMetrics?.pcr != null ? optionMetrics.pcr.toFixed(2) : '—'}
+          </div>
+          <div className="text-[10px] text-slate-500 mt-1 font-sans">
+            {optionMetrics?.atmIv != null
+              ? `ATM IV ${optionMetrics.atmIv.toFixed(1)}% · ${optionMetrics.bias.toLowerCase()}`
+              : 'Awaiting option chain'}
+          </div>
         </div>
 
         <div className="pro-card card-purple-accent p-4">
