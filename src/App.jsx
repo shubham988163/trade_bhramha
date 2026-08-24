@@ -196,6 +196,7 @@ export default function App() {
           <MarketPulseView
             indices={displayIndices}
             tradeFlowLogs={snapshot.tradeFlowLogs}
+            optionChain={snapshot.optionChain}
             onSelectSignal={handleSelectSignal}
             onNavigate={navigate}
           />

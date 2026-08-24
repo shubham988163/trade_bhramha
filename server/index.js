@@ -221,7 +221,12 @@ app.get('/api/fyers/quotes', async (req, res) => {
     const json = await resp.json();
 
     if (json.s !== 'ok' || !Array.isArray(json.d)) {
-      return res.status(502).json({ error: 'Fyers quotes error', detail: json });
+      // Surface a throttle as 429 rather than 502 — the client backs off on
+      // rate limits but treats 502 as a transient upstream blip.
+      const throttled = json.code === 429 || /limit reached/i.test(json.message || '');
+      return res
+        .status(throttled ? 429 : 502)
+        .json({ error: throttled ? 'Fyers rate limit' : 'Fyers quotes error', detail: json });
     }
 
     // Pass through only what the client needs, and guarantee `short_name`
