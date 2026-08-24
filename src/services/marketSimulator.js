@@ -1,4 +1,4 @@
-// Market Simulation Engine for TradeBrahma Clone
+// Market Simulation Engine — fallback data source when no broker is connected
 
 export const INITIAL_INDICES = {
   nifty: { symbol: 'NIFTY 50', price: 24582.40, change: 146.50, pChange: 0.60, high: 24610.00, low: 24420.10 },

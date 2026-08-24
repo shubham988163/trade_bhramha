@@ -2,7 +2,8 @@
    TradeBrahma — Professional Institutional Terminal Design System v3.0
    ============================================================ */
 @import "tailwindcss";
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
+/* Fonts are loaded via <link rel="preconnect"/stylesheet> in index.html — an
+   @import here would land after Tailwind's expansion and be invalid CSS. */
 
 :root {
   --bg-dark: #040710;
@@ -22,11 +23,11 @@
   --color-purple: #a78bfa;
 }
 
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
+/* NOTE: do NOT add an unlayered `* { margin:0; padding:0 }` reset here.
+   `@import "tailwindcss"` puts utilities in `@layer utilities`, and any
+   unlayered rule outranks every layered one — such a reset silently kills
+   every padding and margin utility in the app. Tailwind's preflight already
+   resets these correctly inside the base layer. */
 
 body {
   background-color: var(--bg-dark);
@@ -183,11 +184,16 @@ body::before {
 }
 
 /* ============ Badges ============ */
+/* Every badge variant must be listed here — a variant that only declares its
+   colours renders with no padding and wraps mid-label. */
 .badge,
 .badge-pro,
 .badge-bull,
+.badge-bullish,
 .badge-bear,
-.badge-cyan {
+.badge-bearish,
+.badge-cyan,
+.badge-amber {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -420,6 +426,206 @@ input:focus, select:focus {
   outline: none;
 }
 
+/* ============ Focus visibility (a11y) ============
+   Keyboard users get a clear ring; pointer users see nothing extra. */
+.focus-ring:focus-visible,
+button:focus-visible,
+[role="button"]:focus-visible {
+  outline: 2px solid #38bdf8;
+  outline-offset: 2px;
+  border-radius: 10px;
+}
+
+/* ============ Meters ============
+   Segmented advance/decline bar. The 2px surface-coloured gap between
+   segments keeps adjacent fills readable instead of blending into one
+   continuous band, and the rounded outer ends anchor the track. */
+.meter {
+  display: flex;
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(2, 6, 16, 0.75);
+  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.08);
+}
+.meter > span {
+  display: block;
+  height: 100%;
+  min-width: 0;
+}
+.meter > span + span {
+  border-left: 2px solid #070b14;
+}
+.meter-adv { background: linear-gradient(90deg, #059669, #10b981); }
+.meter-dec { background: linear-gradient(90deg, #f43f5e, #be123c); }
+
+/* Single-value magnitude bar (index contribution, confidence). */
+.bar-track {
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(2, 6, 16, 0.75);
+  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.08);
+  overflow: hidden;
+}
+.bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Idle counterpart to .pulse-green — feed paused, not dead. */
+.dot-idle {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  background-color: #f59e0b;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.7);
+}
+
+/* ============ Mobile nav drawer ============ */
+@keyframes drawer-in {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(0); }
+}
+.drawer-enter {
+  animation: drawer-in 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ============================================================
+   Landing page — public marketing surface.
+   Palette mirrors tradebrahma.in: near-black base stepping to indigo,
+   cyan primary, violet secondary, green conversion CTAs.
+   ============================================================ */
+.landing {
+  --lp-cyan: #64c8ff;
+  --lp-cyan-bright: #00d9ff;
+  --lp-blue: #3b82f6;
+  --lp-violet: #8b5ef6;
+  background:
+    radial-gradient(circle at 20% 30%, rgba(139, 94, 246, 0.19) 0%, transparent 50%),
+    radial-gradient(circle at 80% 70%, rgba(99, 200, 254, 0.15) 0%, transparent 50%),
+    linear-gradient(180deg, #0a0a0a 0%, #0f0f14 50%, #1a1a24 100%);
+  background-attachment: fixed;
+}
+
+.landing-nav {
+  background: rgba(10, 10, 12, 0.82);
+  backdrop-filter: blur(18px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+/* Faint engineering grid, faded out toward the bottom of its section. */
+.grid-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(100, 200, 255, 0.33) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(100, 200, 255, 0.33) 1px, transparent 1px);
+  background-size: 56px 56px;
+  opacity: 0.06;
+  mask-image: radial-gradient(ellipse 80% 70% at 50% 0%, black 10%, transparent 75%);
+}
+
+.text-gradient-cyan {
+  background: linear-gradient(135deg, #3b82f6 0%, #64c8ff 55%, #00d9ff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Conversion CTAs — green, as on the reference. */
+.cta-green {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 10px;
+  font-weight: 700;
+  color: #052e16;
+  background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+  border: 1px solid rgba(74, 222, 128, 0.5);
+  box-shadow: 0 6px 20px rgba(34, 197, 94, 0.28);
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
+}
+.cta-green:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.06);
+  box-shadow: 0 10px 28px rgba(34, 197, 94, 0.4);
+}
+
+.cta-green-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 10px;
+  font-weight: 600;
+  color: #86efac;
+  background: rgba(34, 197, 94, 0.09);
+  border: 1px solid rgba(74, 222, 128, 0.42);
+  cursor: pointer;
+  transition: transform 0.18s ease, background 0.18s ease;
+}
+.cta-green-outline:hover {
+  transform: translateY(-2px);
+  background: rgba(34, 197, 94, 0.16);
+}
+
+/* Module + legal cards share one surface; the accent tints on hover. */
+.module-card,
+.legal-card {
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.055) 0%, rgba(255, 255, 255, 0.018) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  backdrop-filter: blur(10px);
+  transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+}
+.module-card { cursor: pointer; }
+.module-card:hover {
+  transform: translateY(-4px);
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45),
+              0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+.legal-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.cta-band {
+  background:
+    radial-gradient(circle at 20% 50%, rgba(59, 130, 246, 0.16) 0%, transparent 55%),
+    radial-gradient(circle at 80% 50%, rgba(100, 200, 255, 0.13) 0%, transparent 55%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.015) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cta-green,
+  .cta-green-outline,
+  .module-card,
+  .legal-card {
+    transition: none !important;
+  }
+}
+
+/* ============ Section headings ============ */
+.section-title {
+  font-size: 0.8rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #ffffff;
+}
+.section-sub {
+  font-size: 0.7rem;
+  color: #64748b;
+}
+
 /* ============ View Transition ============ */
 @keyframes view-enter {
   from { opacity: 0; transform: translateY(12px); }
@@ -472,7 +678,12 @@ input:focus, select:focus {
   .pulse-green,
   .live-dot::after,
   .float-anim,
-  .shimmer-text {
+  .shimmer-text,
+  .drawer-enter {
     animation: none !important;
+  }
+  .bar-fill,
+  .app-sidebar {
+    transition: none !important;
   }
 }

@@ -57,7 +57,7 @@ app.get('/api/fyers/login-url', (req, res) => {
     client_id: FYERS_APP_ID,
     redirect_uri: FYERS_REDIRECT_URI,
     response_type: 'code',
-    state: 'tradebrahma',
+    state: 'tradewidsp',
   });
   res.json({ url: `${FYERS_API_BASE}/generate-authcode?${params}` });
 });
@@ -209,41 +209,37 @@ app.get('/api/fyers/quotes', async (req, res) => {
   }
 
   const symbolList = symbolsQuery.split(',').map(s => s.trim()).filter(Boolean);
-  
+
+  // Fyers /data/quotes takes up to 50 comma-separated symbols in ONE request
+  // and already returns the { n, v: { lp, ch, chp, ... } } shape the client
+  // parses. The previous implementation fanned out one /data/depth call per
+  // symbol: at 10 symbols on a 2s poll that is 300 req/min, over the 200/min
+  // account limit. Batched, the same poll costs 30 req/min.
   try {
-    // Fetch depth for all requested symbols in parallel
-    const results = await Promise.allSettled(
-      symbolList.map(async (sym) => {
-        const resp = await fetch(
-          `${FYERS_DATA_BASE}/depth?symbol=${encodeURIComponent(sym)}&ohlcv_flag=1`,
-          { headers: authHeader() }
-        );
-        const json = await resp.json();
-        const item = json?.d?.[sym];
-        if (!item) return null;
+    const url = `${FYERS_DATA_BASE}/quotes?symbols=${encodeURIComponent(symbolList.join(','))}`;
+    const resp = await fetch(url, { headers: authHeader() });
+    const json = await resp.json();
 
-        return {
-          n: sym,
-          v: {
-            short_name: sym.split(':')[1]?.replace('-INDEX', '')?.replace('-EQ', '') || sym,
-            lp: item.ltp ?? item.c ?? 0,
-            open_price: item.o ?? item.ltp ?? 0,
-            high_price: item.h ?? item.ltp ?? 0,
-            low_price: item.l ?? item.ltp ?? 0,
-            prev_close_price: item.c ?? item.ltp ?? 0,
-            ch: item.ch ?? 0,
-            chp: item.chp ?? 0,
-            volume: item.v ?? item.ltq ?? 0,
-          }
-        };
-      })
-    );
+    if (json.s !== 'ok' || !Array.isArray(json.d)) {
+      return res.status(502).json({ error: 'Fyers quotes error', detail: json });
+    }
 
-    const validData = results
-      .filter(r => r.status === 'fulfilled' && r.value)
-      .map(r => r.value);
+    // Pass through only what the client needs, and guarantee `short_name`
+    // (Fyers omits it for some index symbols).
+    const data = json.d
+      .filter(item => item && item.v)
+      .map(item => ({
+        n: item.n,
+        v: {
+          ...item.v,
+          short_name:
+            item.v.short_name ||
+            item.n.split(':')[1]?.replace('-INDEX', '').replace('-EQ', '') ||
+            item.n,
+        },
+      }));
 
-    res.json({ s: 'ok', d: validData });
+    res.json({ s: 'ok', d: data });
   } catch (err) {
     res.status(502).json({ error: 'Fyers upstream error', detail: String(err) });
   }

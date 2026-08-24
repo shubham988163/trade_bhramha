@@ -27,6 +27,12 @@ const STOCK_CATALOG = [
   { symbol: 'POWERGRID', name: 'Power Grid Corp', basePrice: 335.00, sector: 'ENERGY' },
 ];
 
+// Chart plot geometry. Shared by the renderer and the mouse hit-testing so the
+// two can never disagree about where the price axis starts.
+const RIGHT_MARGIN = 78;
+const BOTTOM_MARGIN = 30;
+const CHART_HEIGHT = 370;
+
 function generateSimulatedCandles(basePrice, count = 55, tf = '5m') {
   const candles = [];
   const now = new Date();
@@ -51,7 +57,18 @@ function generateSimulatedCandles(basePrice, count = 55, tf = '5m') {
     candles.push({ time: timeStr, open, high, low, close, volume });
     currentPrice = close;
   }
-  return candles;
+
+  // Anchor the walk so the final close IS basePrice. Without this the series
+  // drifts away from the quoted price and the header LTP / order ticket
+  // disagree with the last candle on screen.
+  const drift = basePrice - candles[candles.length - 1].close;
+  return candles.map((c) => ({
+    ...c,
+    open: Math.round((c.open + drift) * 100) / 100,
+    high: Math.round((c.high + drift) * 100) / 100,
+    low: Math.round((c.low + drift) * 100) / 100,
+    close: Math.round((c.close + drift) * 100) / 100,
+  }));
 }
 
 export default function TradingChart({ selectedSignal, liveIndices }) {
@@ -96,7 +113,7 @@ export default function TradingChart({ selectedSignal, liveIndices }) {
   const [walletBalance, setWalletBalance] = useState(500000);
 
   const canvasRef = useRef(null);
-  const containerRef = useRef(null);
+  const plotRef = useRef(null);
   const dropdownRef = useRef(null);
 
   // Close symbol dropdown when clicked outside
@@ -235,26 +252,30 @@ export default function TradingChart({ selectedSignal, liveIndices }) {
     if (!canvas || !candles || candles.length === 0) return;
 
     const ctx = canvas.getContext('2d');
-    const container = containerRef.current;
-    if (!container) return;
+    // Measure the plot wrapper, NOT the card: the card carries p-4, and
+    // clientWidth includes padding, which would size the canvas 32px wider
+    // than its content box and clip the right-hand price axis.
+    const plot = plotRef.current;
+    if (!plot) return;
 
-    const width = container.clientWidth || 800;
-    const height = 370;
+    const width = plot.clientWidth || 800;
+    const height = CHART_HEIGHT;
     const dpr = window.devicePixelRatio || 1;
 
-    canvas.width = width * dpr;
-    canvas.height = height * dpr;
-    canvas.style.width = `${width}px`;
+    // Only the backing store is set here; the CSS width stays `w-full` so the
+    // element can still shrink on resize.
+    canvas.width = Math.round(width * dpr);
+    canvas.height = Math.round(height * dpr);
     canvas.style.height = `${height}px`;
 
-    ctx.scale(dpr, dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     // Dark terminal background
     ctx.fillStyle = '#040710';
     ctx.fillRect(0, 0, width, height);
 
-    const rightMargin = 75;
-    const bottomMargin = 30;
+    const rightMargin = RIGHT_MARGIN;
+    const bottomMargin = BOTTOM_MARGIN;
     const chartWidth = width - rightMargin;
     const chartHeight = height - bottomMargin;
 
@@ -285,11 +306,13 @@ export default function TradingChart({ selectedSignal, liveIndices }) {
       ctx.lineTo(chartWidth, y);
       ctx.stroke();
 
-      // Right axis price text
+      // Right axis price text — clamped so the top/bottom labels are not
+      // sliced by the canvas edge.
       ctx.fillStyle = '#64748b';
       ctx.font = '10px "IBM Plex Mono", monospace';
       ctx.textAlign = 'left';
-      ctx.fillText(p.toFixed(1), chartWidth + 8, y + 3);
+      ctx.textBaseline = 'middle';
+      ctx.fillText(p.toFixed(1), chartWidth + 8, Math.min(chartHeight - 6, Math.max(7, y)));
     }
 
     const candleCount = candles.length;
@@ -304,11 +327,13 @@ export default function TradingChart({ selectedSignal, liveIndices }) {
       ctx.lineTo(x, chartHeight);
       ctx.stroke();
 
-      // Bottom axis time text
+      // Bottom axis time text — nudged inward at the edges so the first and
+      // last stamps read in full instead of being half-cut.
       ctx.fillStyle = '#475569';
       ctx.font = '9px "IBM Plex Mono", monospace';
       ctx.textAlign = 'center';
-      ctx.fillText(candles[i].time, x, height - 10);
+      ctx.textBaseline = 'alphabetic';
+      ctx.fillText(candles[i].time, Math.min(chartWidth - 16, Math.max(16, x)), height - 9);
     }
 
     // Volume bars at bottom
@@ -479,25 +504,29 @@ export default function TradingChart({ selectedSignal, liveIndices }) {
     drawChart();
   }, [drawChart]);
 
+  // Track the plot box itself — the sidebar collapsing or the card reflowing
+  // resizes the canvas without firing a window resize event.
   useEffect(() => {
-    const handleResize = () => drawChart();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    const plot = plotRef.current;
+    if (!plot || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => drawChart());
+    ro.observe(plot);
+    return () => ro.disconnect();
   }, [drawChart]);
 
   const handleMouseMove = (e) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
+    const plot = plotRef.current;
+    if (!plot) return;
+    const rect = plot.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
     setMousePos({ x, y });
 
-    const chartWidth = (canvas.width / (window.devicePixelRatio || 1)) - 75;
+    const chartWidth = rect.width - RIGHT_MARGIN;
     const candleWidth = chartWidth / candles.length;
     const idx = Math.min(candles.length - 1, Math.max(0, Math.floor(x / candleWidth)));
-    setHoveredCandle(candles[idx] || null);
+    setHoveredCandle(x >= 0 && x <= chartWidth ? candles[idx] || null : null);
   };
 
   const handleMouseLeave = () => {
@@ -702,7 +731,7 @@ export default function TradingChart({ selectedSignal, liveIndices }) {
       {/* Main Chart Area + Order Execution Panel */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Interactive Chart (2 Columns) */}
-        <div className="lg:col-span-2 glass-card p-4 space-y-2.5 flex flex-col justify-between" ref={containerRef}>
+        <div className="lg:col-span-2 glass-card p-4 space-y-2.5 flex flex-col justify-between">
           {/* Live Telemetry Bar */}
           <div className="flex flex-wrap items-center justify-between text-xs font-mono border-b border-slate-800/80 pb-2">
             <div className="flex items-center gap-3">
@@ -725,7 +754,10 @@ export default function TradingChart({ selectedSignal, liveIndices }) {
           </div>
 
           {/* Canvas Element with mouse tracking */}
-          <div className="relative w-full bg-[#040710] rounded-xl overflow-hidden border border-slate-900/90 cursor-crosshair">
+          <div
+            ref={plotRef}
+            className="relative w-full bg-[#040710] rounded-xl overflow-hidden border border-slate-900/90 cursor-crosshair"
+          >
             <canvas
               ref={canvasRef}
               onMouseMove={handleMouseMove}

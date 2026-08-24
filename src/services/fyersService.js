@@ -33,7 +33,13 @@ class FyersService {
   constructor() {
     this.connected = false;
     this.profile = null;
-    this.liveQuotes = null; // { nifty: {...}, bankNifty: {...}, sensex: {...}, ... }
+    // Lookup map keyed by every alias of a symbol (index key, 'NSE:X-EQ', 'X').
+    // Used for point lookups, e.g. TradingChart resolving its active symbol.
+    this.liveQuotes = null;
+    // Only the five index keys. Kept separate because this is what gets merged
+    // into the simulator's `indices` — spreading the alias map there would put
+    // every equity and every alias into the header ticker.
+    this.liveIndices = null;
     this.funds = null;
     this.positions = null;
     this.listeners = [];
@@ -57,6 +63,7 @@ class FyersService {
       connected: this.connected,
       profile: this.profile,
       liveQuotes: this.liveQuotes,
+      liveIndices: this.liveIndices,
       funds: this.funds,
       positions: this.positions,
     };
@@ -79,6 +86,7 @@ class FyersService {
     } else {
       this.stopPolling();
       this.liveQuotes = null;
+      this.liveIndices = null;
     }
     this.notify();
     return this.connected;
@@ -110,6 +118,7 @@ class FyersService {
     this.connected = false;
     this.profile = null;
     this.liveQuotes = null;
+    this.liveIndices = null;
     this.funds = null;
     this.positions = null;
     this.stopPolling();
@@ -140,6 +149,7 @@ class FyersService {
       if (data.s !== 'ok' || !Array.isArray(data.d)) return;
 
       const quotes = {};
+      const indices = {};
       for (const entry of data.d) {
         // Check if it's an index
         const indexKey = Object.keys(FYERS_INDEX_SYMBOLS).find(
@@ -163,6 +173,7 @@ class FyersService {
 
         if (indexKey) {
           quotes[indexKey] = formatted;
+          indices[indexKey] = formatted;
         }
         // Also index by raw symbol key (e.g. 'NSE:RELIANCE-EQ' and 'RELIANCE')
         quotes[entry.n] = formatted;
@@ -174,6 +185,7 @@ class FyersService {
 
       if (Object.keys(quotes).length) {
         this.liveQuotes = { ...(this.liveQuotes || {}), ...quotes };
+        this.liveIndices = { ...(this.liveIndices || {}), ...indices };
         this.notify();
       }
     } catch {
