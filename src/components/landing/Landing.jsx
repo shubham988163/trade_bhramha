@@ -5,6 +5,8 @@ import {
   ShieldCheck, FileText, MessageCircle, Sparkles,
 } from 'lucide-react';
 import PhoneMockup from './PhoneMockup';
+import Logo from '../Logo';
+import { BRAND } from '../../brand';
 import {
   HERO_BULLETS, FEATURE_SECTIONS, MODULES, FAQS, LEGAL_DOCS, CONTACT_EMAIL,
 } from '../../landingContent';
@@ -106,16 +108,8 @@ export default function Landing({ onEnter }) {
       {/* ── Nav ──────────────────────────────────────────────────────────── */}
       <header className="landing-nav sticky top-0 z-50">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
-          <a href="#top" className="flex items-center gap-2.5 shrink-0 focus-ring rounded">
-            <span
-              className="w-9 h-9 rounded-xl flex items-center justify-center shadow-lg shadow-sky-500/30 border border-sky-400/30"
-              style={{ background: 'linear-gradient(135deg,#3b82f6 0%,#64c8ff 100%)' }}
-            >
-              <Zap style={{ width: 19, height: 19 }} className="text-white" />
-            </span>
-            <span className="font-extrabold text-lg tracking-tight">
-              Trade<span className="text-sky-400">Brahma</span>
-            </span>
+          <a href="#top" className="shrink-0 focus-ring rounded">
+            <Logo size={36} textClass="text-lg" />
           </a>
 
           <nav className="hidden md:flex items-center gap-7 text-[13px] font-semibold text-slate-300">
@@ -127,7 +121,7 @@ export default function Landing({ onEnter }) {
 
           <div className="flex items-center gap-2 shrink-0">
             <a
-              href="https://t.me/tradebrahma"
+              href={BRAND.telegram}
               target="_blank"
               rel="noopener noreferrer"
               className="hidden sm:inline-flex items-center gap-1.5 text-[13px] font-semibold px-3 py-1.5 rounded-lg text-white transition-transform hover:-translate-y-px focus-ring"
@@ -243,7 +237,7 @@ export default function Landing({ onEnter }) {
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
           <SectionHeading
             eyebrow="The complete suite"
-            title="Why Choose TradeBrahma?"
+            title={`Why Choose ${BRAND.name}?`}
             sub="Eight purpose-built modules covering discovery, confirmation and execution — every one of them live in the terminal."
           />
 
@@ -361,17 +355,7 @@ export default function Landing({ onEnter }) {
       <footer className="border-t border-white/5 py-12">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 grid sm:grid-cols-3 gap-8">
           <div>
-            <div className="flex items-center gap-2.5">
-              <span
-                className="w-8 h-8 rounded-lg flex items-center justify-center"
-                style={{ background: 'linear-gradient(135deg,#3b82f6 0%,#64c8ff 100%)' }}
-              >
-                <Zap style={{ width: 17, height: 17 }} className="text-white" />
-              </span>
-              <span className="font-extrabold tracking-tight">
-                Trade<span className="text-sky-400">Brahma</span>
-              </span>
-            </div>
+            <Logo size={32} textClass="text-base" />
             <p className="mt-3 text-[12px] text-slate-400 leading-relaxed">
               India&apos;s AI market pulse scanner — precision signals across equities, options and sectors.
             </p>
@@ -397,7 +381,7 @@ export default function Landing({ onEnter }) {
             <h4 className="text-[12px] font-bold uppercase tracking-widest text-slate-300">Connect With Us</h4>
             <div className="mt-3 flex flex-col gap-2">
               <a
-                href="https://t.me/tradebrahma"
+                href={BRAND.telegram}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 text-[12.5px] text-slate-400 hover:text-sky-400 transition-colors"
@@ -405,7 +389,7 @@ export default function Landing({ onEnter }) {
                 <Send style={{ width: 14, height: 14 }} /> Telegram
               </a>
               <a
-                href="https://wa.me/919000000000"
+                href={BRAND.whatsapp}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 text-[12.5px] text-slate-400 hover:text-emerald-400 transition-colors"
@@ -425,11 +409,11 @@ export default function Landing({ onEnter }) {
         <div className="mx-auto max-w-6xl px-4 sm:px-6 mt-10 pt-6 border-t border-white/5">
           <p className="text-[11px] text-slate-500 leading-relaxed flex items-start gap-2">
             <ShieldCheck style={{ width: 14, height: 14 }} className="shrink-0 mt-px text-slate-600" />
-            Trading in securities carries risk of loss. TradeBrahma provides analytical tools and
+            Trading in securities carries risk of loss. {BRAND.name} provides analytical tools and
             information only — not investment advice. Signals shown in this build are simulated.
           </p>
           <p className="mt-3 text-[11px] text-slate-600">
-            © {new Date().getFullYear()} TradeBrahma. All rights reserved.
+            © {new Date().getFullYear()} {BRAND.name}. All rights reserved.
           </p>
         </div>
       </footer>

@@ -1,5 +1,6 @@
 import React from 'react';
-import { Zap, Play, Pause, Volume2, VolumeX, TrendingUp, TrendingDown, Wifi, WifiOff, Menu } from 'lucide-react';
+import { Play, Pause, Volume2, VolumeX, TrendingUp, TrendingDown, Wifi, WifiOff, Menu } from 'lucide-react';
+import Logo from './Logo';
 import { num, signed, pct } from '../utils/format';
 
 export default function HeaderTicker({
@@ -21,21 +22,11 @@ export default function HeaderTicker({
             <Menu style={{ width: 18, height: 18 }} />
           </button>
 
-          <div
-            style={{ background: 'linear-gradient(135deg, #0284c7 0%, #38bdf8 100%)' }}
-            className="w-8 h-8 rounded-xl flex items-center justify-center shadow-lg shadow-sky-500/30 border border-sky-400/30 shrink-0"
-          >
-            <Zap className="text-white" style={{ width: 18, height: 18 }} />
-          </div>
+          <Logo size={32} textClass="text-base sm:text-lg" />
 
-          <div className="flex items-center gap-2.5 min-w-0">
-            <span className="font-extrabold text-base sm:text-lg tracking-tight text-white glow-cyan truncate">
-              TradeBrahma
-            </span>
-            <span className="badge-cyan font-mono text-[9px] uppercase font-bold tracking-widest hidden lg:inline-flex">
-              Pro Terminal
-            </span>
-          </div>
+          <span className="badge-cyan font-mono text-[9px] uppercase font-bold tracking-widest hidden lg:inline-flex">
+            Pro Terminal
+          </span>
         </div>
 
         {/* Center status pills */}

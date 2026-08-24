@@ -138,9 +138,11 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [navigate, inApp]);
 
-  // Live Fyers quotes override the simulated indices when connected
-  const displayIndices = fyers.connected && fyers.liveQuotes
-    ? { ...snapshot.indices, ...fyers.liveQuotes }
+  // Live Fyers quotes override the simulated indices when connected.
+  // Merge `liveIndices` (index keys only) — merging the full `liveQuotes`
+  // alias map would spill every equity and alias into the header ticker.
+  const displayIndices = fyers.connected && fyers.liveIndices
+    ? { ...snapshot.indices, ...fyers.liveIndices }
     : snapshot.indices;
 
   // Handle signal selection & router redirect to TradeX chart

@@ -1,10 +1,12 @@
 /**
  * Copy for the public landing page.
  *
- * Structure and module vocabulary mirror tradebrahma.in so the marketing site
- * and the terminal use one shared language (TradeBrahmand, MarketWise,
+ * Module vocabulary is shared with the terminal so the marketing site
+ * and the app speak one language (TradeVerse, MarketWise,
  * TradeFlow, StockOn, SwingSpectrum, TradeX, OptionClock, IndexMover).
  */
+
+import { BRAND } from './brand';
 
 export const HERO_BULLETS = [
   { icon: '🏆', text: 'Find Best Trades In Live Market' },
@@ -51,7 +53,7 @@ export const FEATURE_SECTIONS = [
 ];
 
 export const MODULES = [
-  { name: 'TradeBrahmand', desc: 'Complete trading universe at a glance', icon: 'Orbit', tab: 'pulse', accent: '#64c8ff' },
+  { name: 'TradeVerse', desc: 'Complete trading universe at a glance', icon: 'Orbit', tab: 'pulse', accent: '#64c8ff' },
   { name: 'MarketWise', desc: 'Smart market insights & analysis', icon: 'Grid', tab: 'heatmap', accent: '#8b5ef6' },
   { name: 'TradeFlow', desc: 'Track real-time trade movements', icon: 'Activity', tab: 'tradeflow', accent: '#4ade80' },
   { name: 'StockOn', desc: 'Instant stock alerts & signals', icon: 'Zap', tab: 'scanners', accent: '#facc15' },
@@ -62,14 +64,14 @@ export const MODULES = [
 ];
 
 export const FAQS = [
-  ['What exactly is TradeBrahma?',
-   'TradeBrahma is an AI-driven market scanner for Indian equities and derivatives. It watches the whole NSE universe in real time and surfaces the handful of setups worth your attention — momentum breakouts, reversals, unusual institutional flow and option-chain shifts — so you spend your time deciding, not searching.'],
-  ['Who is TradeBrahma made for?',
+  ['What exactly is Trade_wid_SP?',
+   'Trade_wid_SP is an AI-driven market scanner for Indian equities and derivatives. It watches the whole NSE universe in real time and surfaces the handful of setups worth your attention — momentum breakouts, reversals, unusual institutional flow and option-chain shifts — so you spend your time deciding, not searching.'],
+  ['Who is Trade_wid_SP made for?',
    'Active intraday and swing traders in Indian markets who want an analytical edge without building their own scanning stack. It suits both people running a discretionary process and those following a fixed rulebook.'],
-  ['How does TradeBrahma actually help me?',
+  ['How does Trade_wid_SP actually help me?',
    'It compresses hours of chart-flipping into a ranked list. Every signal arrives with an entry, a stop loss, two targets and a confidence score, so you can size the trade and judge the risk immediately rather than reverse-engineering the idea.'],
-  ['Will TradeBrahma make me guaranteed profits?',
-   'No. Nothing in markets is guaranteed, and any tool that claims otherwise should be treated with suspicion. TradeBrahma improves the quality and speed of your analysis; risk management and execution discipline remain yours. Trading carries real risk of loss.'],
+  ['Will Trade_wid_SP make me guaranteed profits?',
+   'No. Nothing in markets is guaranteed, and any tool that claims otherwise should be treated with suspicion. Trade_wid_SP improves the quality and speed of your analysis; risk management and execution discipline remain yours. Trading carries real risk of loss.'],
   ['Is it beginner-friendly?',
    'Yes. Signals are presented in plain language with the reasoning attached, and the paper-trading terminal lets you rehearse ideas with a simulated wallet before any real money is involved.'],
   ['Which markets does it work for?',
@@ -92,10 +94,10 @@ export const FAQS = [
    'Sign in, optionally connect your broker for live data, and open the terminal. No installation is required — it runs entirely in the browser.'],
   ['Is it helpful for option trading?',
    'Yes. OptionClock tracks the live chain with open interest, IV, PCR and max-pain levels, and flags OI build-up and unwinding at each strike.'],
-  ['Why do traders love TradeBrahma?',
+  ['Why do traders love Trade_wid_SP?',
    'Because it removes the tedious part. Instead of scanning hundreds of charts for a setup that may not exist, you open one screen that already knows where the market is active.'],
-  ['How can I contact TradeBrahma support?',
-   'Reach the team on Telegram or WhatsApp, or email tradebrahmaofficial@gmail.com.'],
+  ['How can I contact Trade_wid_SP support?',
+   'Reach the team on Telegram or WhatsApp, or email support@tradewidsp.com.'],
 ];
 
 export const LEGAL_DOCS = [
@@ -105,4 +107,4 @@ export const LEGAL_DOCS = [
   { title: 'Refund Policy', desc: 'Terms and conditions for subscription cancellations and refunds', accent: '#a855f7' },
 ];
 
-export const CONTACT_EMAIL = 'tradebrahmaofficial@gmail.com';
+export const CONTACT_EMAIL = BRAND.email;

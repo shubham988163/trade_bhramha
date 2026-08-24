@@ -15,7 +15,7 @@ const AVATAR_INK = ['#dc2626', '#2563eb', '#16a34a', '#d97706', '#7c3aed', '#e11
 
 function BottomNav({ active = 0 }) {
   const items = [
-    { icon: Circle, label: 'Brahmand' },
+    { icon: Circle, label: 'Verse' },
     { icon: Settings, label: 'Market' },
     { icon: TrendingUp, label: 'Trade Fl…' },
     { icon: IndianRupee, label: 'Index' },

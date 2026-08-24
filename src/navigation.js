@@ -11,7 +11,7 @@ import {
  * along for free.
  */
 export const NAV_ITEMS = [
-  { id: 'pulse', label: 'TradeBrahmand', short: 'Pulse', icon: LayoutDashboard, badge: 'LIVE' },
+  { id: 'pulse', label: 'TradeVerse', short: 'Pulse', icon: LayoutDashboard, badge: 'LIVE' },
   { id: 'optionclock', label: 'OptionClock', short: 'Chain', icon: Compass, badge: 'HOT' },
   { id: 'heatmap', label: 'MarketWise', short: 'Sectors', icon: Grid },
   { id: 'scanners', label: 'StockOn', short: 'Signals', icon: Zap, badge: '5' },

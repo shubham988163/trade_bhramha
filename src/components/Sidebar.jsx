@@ -107,7 +107,7 @@ function SidebarBody({ activeTab, setActiveTab, onOpenSettings, fyers, collapsed
       <div className="space-y-1.5 flex-1 min-h-0 overflow-y-auto scrollbar-thin">
         <button
           onClick={onExitToSite}
-          title="Back to tradebrahma.in"
+          title="Back to the public site"
           className={`w-full flex items-center gap-2 py-2 rounded-lg text-[11px] font-semibold text-slate-500 hover:text-sky-400 hover:bg-white/5 transition-colors focus-ring ${
             collapsed ? 'justify-center px-0' : 'px-2'
           }`}

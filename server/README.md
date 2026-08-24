@@ -6,7 +6,7 @@ calls, so the App Secret never reaches the browser.
 ## One-time setup
 
 1. Create an app at <https://myapi.fyers.in/dashboard>:
-   - **App name:** anything, e.g. `TradeBrahma`
+   - **App name:** anything, e.g. `Trade_wid_SP`
    - **Redirect URL:** `http://localhost:3001/api/fyers/callback` (must match exactly)
 2. Copy `.env.example` to `.env` and paste your **App ID** and **Secret Key**.
 3. Install deps from the project root (already done if you ran `npm install`).
