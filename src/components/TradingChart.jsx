@@ -115,6 +115,9 @@ export default function TradingChart({ selectedSignal, liveIndices }) {
   const canvasRef = useRef(null);
   const plotRef = useRef(null);
   const dropdownRef = useRef(null);
+  // Mirrors `candles` so the tick interval can read the latest series without
+  // depending on it (which would tear down and recreate the interval each tick).
+  const candlesRef = useRef(candles);
 
   // Close symbol dropdown when clicked outside
   useEffect(() => {
@@ -195,46 +198,51 @@ export default function TradingChart({ selectedSignal, liveIndices }) {
     return () => unsubscribe();
   }, [symbol]);
 
-  // LIVE TICK SIMULATION: Breathe life into the chart every 1.5s when active
+  useEffect(() => {
+    candlesRef.current = candles;
+  }, [candles]);
+
+  // LIVE TICK SIMULATION: Breathe life into the chart every 1.4s.
+  //
+  // The tick value is drawn ONCE here, outside every updater, and the three
+  // states that depend on it are then set from that single value. Drawing it
+  // inside a setState updater desynchronises them: updaters must be pure, and
+  // StrictMode deliberately double-invokes them in development, so a
+  // Math.random() call inside would yield a different close on each invocation
+  // — leaving the header LTP showing one draw and the chart's last candle
+  // another.
   useEffect(() => {
     const interval = setInterval(() => {
-      setCandles(prev => {
-        if (!prev || prev.length === 0) return prev;
-        const lastIdx = prev.length - 1;
-        const last = prev[lastIdx];
-        const tickDelta = (Math.random() - 0.485) * (last.close * 0.0008);
-        const newClose = Math.round((last.close + tickDelta) * 100) / 100;
-        const newHigh = Math.round(Math.max(last.high, newClose) * 100) / 100;
-        const newLow = Math.round(Math.min(last.low, newClose) * 100) / 100;
-        const newVolume = last.volume + Math.floor(Math.random() * 120 + 15);
+      const prev = candlesRef.current;
+      if (!prev || prev.length === 0) return;
 
-        const updatedLast = {
-          ...last,
+      const last = prev[prev.length - 1];
+      const tickDelta = (Math.random() - 0.485) * (last.close * 0.0008);
+      const newClose = Math.round((last.close + tickDelta) * 100) / 100;
+      const volumeAdd = Math.floor(Math.random() * 120 + 15);
+
+      setCandles(cur => {
+        if (!cur || cur.length === 0) return cur;
+        const i = cur.length - 1;
+        const c = cur[i];
+        const copy = [...cur];
+        copy[i] = {
+          ...c,
           close: newClose,
-          high: newHigh,
-          low: newLow,
-          volume: newVolume
+          high: Math.round(Math.max(c.high, newClose) * 100) / 100,
+          low: Math.round(Math.min(c.low, newClose) * 100) / 100,
+          volume: c.volume + volumeAdd,
         };
-
-        setPrice(newClose);
-
-        // Update live PnL of open positions
-        setPositions(curPos => curPos.map(pos => {
-          if (pos.symbol === symbol) {
-            const diff = pos.side === 'BUY' ? (newClose - pos.avgPrice) : (pos.avgPrice - newClose);
-            return {
-              ...pos,
-              currentPrice: newClose,
-              pnl: Math.round(diff * pos.qty * 10) / 10
-            };
-          }
-          return pos;
-        }));
-
-        const copy = [...prev];
-        copy[lastIdx] = updatedLast;
         return copy;
       });
+
+      setPrice(newClose);
+
+      setPositions(cur => cur.map(pos => {
+        if (pos.symbol !== symbol) return pos;
+        const diff = pos.side === 'BUY' ? newClose - pos.avgPrice : pos.avgPrice - newClose;
+        return { ...pos, currentPrice: newClose, pnl: Math.round(diff * pos.qty * 10) / 10 };
+      }));
     }, 1400);
 
     return () => clearInterval(interval);
