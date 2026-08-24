@@ -212,21 +212,22 @@ class MarketSimulatorService {
     const niftyState = computeIndexMoverState(this.rawIndexMovers.nifty);
     const bankNiftyState = computeIndexMoverState(this.rawIndexMovers.bankNifty);
     const sensexState = computeIndexMoverState(this.rawIndexMovers.sensex);
-    
+
     // Override indexPrice to match the simulated indices (INITIAL_INDICES)
     // This ensures consistency between Header ticker and IndexMover
     niftyState.indexPrice = this.indices.nifty.price;
     bankNiftyState.indexPrice = this.indices.bankNifty.price;
     sensexState.indexPrice = this.indices.sensex.price;
-    
-    // Recalculate pChange based on the simulated price
+
+    // Recalculate pChange based on the actual base prices from constituent data
     const niftyBasePrice = this.rawIndexMovers.nifty.basePrice;
     const bankBasePrice = this.rawIndexMovers.bankNifty.basePrice;
     const sensexBasePrice = this.rawIndexMovers.sensex.basePrice;
-    
-    niftyState.pChange = Math.round(((this.indices.nifty.price - niftyBasePrice) / niftyBasePrice) * 100 * 100) / 100;
-    bankNiftyState.pChange = Math.round(((this.indices.bankNifty.price - bankBasePrice) / bankBasePrice) * 100 * 100) / 100;
-    sensexState.pChange = Math.round(((this.indices.sensex.price - sensexBasePrice) / sensexBasePrice) * 100 * 100) / 100;
+
+    // Use base prices from the raw index data for accurate percentage calculations
+    niftyState.pChange = Math.round(((this.indices.nifty.price - niftyBasePrice) / niftyBasePrice) * 10000) / 100;
+    bankNiftyState.pChange = Math.round(((this.indices.bankNifty.price - bankBasePrice) / bankBasePrice) * 10000) / 100;
+    sensexState.pChange = Math.round(((this.indices.sensex.price - sensexBasePrice) / sensexBasePrice) * 10000) / 100;
 
     return {
       indices: { ...this.indices },

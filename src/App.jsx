@@ -184,6 +184,7 @@ export default function App() {
           <IndexMover
             indexMovers={displayIndexMovers}
             isRunning={snapshot.isRunning}
+            optionChain={fyers.connected && fyers.optionChain ? fyers.optionChain : snapshot.optionChain}
             onNavigate={navigate}
             onSelectSignal={handleSelectSignal}
           />

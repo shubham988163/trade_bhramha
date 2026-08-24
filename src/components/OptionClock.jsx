@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Compass, TrendingUp, TrendingDown, RefreshCw, BarChart2, ShieldAlert } from 'lucide-react';
+import { Compass, TrendingUp, TrendingDown } from 'lucide-react';
 
 export default function OptionClock({ indices }) {
   const [selectedSymbol, setSelectedSymbol] = useState('NIFTY');

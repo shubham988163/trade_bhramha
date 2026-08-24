@@ -326,6 +326,50 @@ app.get('/api/fyers/positions', async (req, res) => {
   }
 });
 
+// Fetch option chain data for PCR calculation
+app.get('/api/fyers/option-chain', async (req, res) => {
+  if (!session.accessToken) {
+    return res.status(401).json({ error: 'Not connected to Fyers' });
+  }
+
+  const symbol = req.query.symbol || 'NSE:NIFTY50-INDEX';
+
+  try {
+    const url = `${FYERS_DATA_BASE}/option-chain?symbol=${encodeURIComponent(symbol)}`;
+    const resp = await fetch(url, { headers: authHeader() });
+    const data = await resp.json();
+
+    if (data.s !== 'ok' || !data.d) {
+      return res.status(502).json({ error: 'Fyers option chain error', detail: data });
+    }
+
+    // Format option chain data: extract Call OI and Put OI
+    const optionChain = data.d.map(strike => ({
+      strike: strike.strike_price,
+      call: {
+        oi: Number(strike.call_oi) || 0,
+        iv: Number(strike.call_iv) || 0,
+        ltp: Number(strike.call_ltp) || 0,
+        volume: Number(strike.call_volume) || 0,
+        change: Number(strike.call_change) || 0,
+        oiChange: Number(strike.call_oi_change) || 0,
+      },
+      put: {
+        oi: Number(strike.put_oi) || 0,
+        iv: Number(strike.put_iv) || 0,
+        ltp: Number(strike.put_ltp) || 0,
+        volume: Number(strike.put_volume) || 0,
+        change: Number(strike.put_change) || 0,
+        oiChange: Number(strike.put_oi_change) || 0,
+      }
+    }));
+
+    res.json({ s: 'ok', d: optionChain, symbol });
+  } catch (err) {
+    res.status(502).json({ error: 'Fyers option chain upstream error', detail: String(err) });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`[fyers-server] listening on http://localhost:${PORT}`);
   console.log(`[fyers-server] app id configured: ${FYERS_APP_ID ? 'yes' : 'NO — fill server/.env'}`);

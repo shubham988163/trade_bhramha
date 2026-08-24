@@ -4,40 +4,10 @@ import {
   Info, ExternalLink, Activity, ChevronDown
 } from 'lucide-react';
 import { INDEX_MOVERS_DATA } from '../services/marketSimulator';
-import { num, pct, signed } from '../utils/format';
+import { num } from '../utils/format';
+import MarketDistribution from './MarketDistribution';
 
-/** One contribution row: name, signed points, and a magnitude bar. */
-function MoverRow({ stock, maxPoints, positive }) {
-  const widthPct = (Math.abs(stock.points) / maxPoints) * 100;
-  return (
-    <div className="space-y-1.5">
-      <div className="flex items-center justify-between gap-3 text-xs">
-        <span className="font-bold text-white truncate">
-          {stock.symbol}
-          <span className="text-[10px] text-slate-500 font-normal ml-1.5">{stock.category}</span>
-        </span>
-        <span className={`font-bold shrink-0 ${positive ? 'text-emerald-400' : 'text-rose-400'}`}>
-          {signed(stock.points, 1)} pts
-          <span className="text-slate-500 mx-1">·</span>
-          {pct(stock.pChange)}
-        </span>
-      </div>
-      <div className="bar-track">
-        <div
-          className="bar-fill"
-          style={{
-            width: `${widthPct}%`,
-            background: positive
-              ? 'linear-gradient(90deg, #059669, #34d399)'
-              : 'linear-gradient(90deg, #be123c, #fb7185)',
-          }}
-        />
-      </div>
-    </div>
-  );
-}
-
-export default function IndexMover({ indexMovers, isRunning, onNavigate, onSelectSignal }) {
+export default function IndexMover({ indexMovers, isRunning, optionChain, onNavigate, onSelectSignal }) {
   const [selectedIdxKey, setSelectedIdxKey] = useState('nifty');
   const [isHowToUseOpen, setIsHowToUseOpen] = useState(false);
   const [selectedStock, setSelectedStock] = useState(null);
@@ -67,8 +37,8 @@ export default function IndexMover({ indexMovers, isRunning, onNavigate, onSelec
 
   const {
     symbol, indexPrice, netPoints, pChange, gainersCount, losersCount,
-    gainers, losers, allConstituents
-  } = activeData;
+    gainers = [], losers = [], allConstituents = []
+  } = activeData || {};
 
   const totalStocks = gainersCount + losersCount;
   const gainersPct = totalStocks > 0 ? (gainersCount / totalStocks) * 100 : 50;
@@ -146,6 +116,12 @@ export default function IndexMover({ indexMovers, isRunning, onNavigate, onSelec
       'Z'
     ].join(' ');
   };
+
+  // Prepare market data for MarketDistribution component
+  const marketDataForDistribution = useMemo(() => ({
+    optionChain: optionChain || [],
+    indexPrice
+  }), [optionChain, indexPrice]);
 
   return (
     <div className="space-y-6 select-none font-sans">
@@ -225,6 +201,9 @@ export default function IndexMover({ indexMovers, isRunning, onNavigate, onSelec
           </div>
         </div>
       </div>
+
+      {/* 2.5. Market Distribution Component */}
+      <MarketDistribution marketData={marketDataForDistribution} isFyersLive={Boolean(optionChain?.length)} />
 
       {/* 3. Circular Donut / Radial Heatmap Section */}
       <div className="glass-card p-6 border border-slate-800/80 bg-[#0d1424]/90 rounded-2xl shadow-xl flex flex-col items-center justify-center relative overflow-hidden">

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
-  CandlestickChart, Shield, Search, ChevronDown, RefreshCw, Target,
-  TrendingUp, TrendingDown, Wifi, Activity, BarChart2, Layers
+  CandlestickChart, Shield, Search, ChevronDown, Target,
+  TrendingUp, Wifi
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { fyersService } from '../services/fyersService';
@@ -71,7 +71,7 @@ function generateSimulatedCandles(basePrice, count = 55, tf = '5m') {
   }));
 }
 
-export default function TradingChart({ selectedSignal, liveIndices }) {
+export default function TradingChart({ selectedSignal }) {
   const [symbol, setSymbol] = useState(selectedSignal ? selectedSignal.symbol : 'RELIANCE');
   const [symbolInput, setSymbolInput] = useState('');
   const [showSymbolSearch, setShowSymbolSearch] = useState(false);
@@ -212,41 +212,44 @@ export default function TradingChart({ selectedSignal, liveIndices }) {
   // — leaving the header LTP showing one draw and the chart's last candle
   // another.
   useEffect(() => {
-    const interval = setInterval(() => {
-      const prev = candlesRef.current;
-      if (!prev || prev.length === 0) return;
+    if (!isFyersLive) {
+      // Only use simulated ticks when Fyers is NOT connected
+      const interval = setInterval(() => {
+        const prev = candlesRef.current;
+        if (!prev || prev.length === 0) return;
 
-      const last = prev[prev.length - 1];
-      const tickDelta = (Math.random() - 0.485) * (last.close * 0.0008);
-      const newClose = Math.round((last.close + tickDelta) * 100) / 100;
-      const volumeAdd = Math.floor(Math.random() * 120 + 15);
+        const last = prev[prev.length - 1];
+        const tickDelta = (Math.random() - 0.485) * (last.close * 0.0008);
+        const newClose = Math.round((last.close + tickDelta) * 100) / 100;
+        const volumeAdd = Math.floor(Math.random() * 120 + 15);
 
-      setCandles(cur => {
-        if (!cur || cur.length === 0) return cur;
-        const i = cur.length - 1;
-        const c = cur[i];
-        const copy = [...cur];
-        copy[i] = {
-          ...c,
-          close: newClose,
-          high: Math.round(Math.max(c.high, newClose) * 100) / 100,
-          low: Math.round(Math.min(c.low, newClose) * 100) / 100,
-          volume: c.volume + volumeAdd,
-        };
-        return copy;
-      });
+        setCandles(cur => {
+          if (!cur || cur.length === 0) return cur;
+          const i = cur.length - 1;
+          const c = cur[i];
+          const copy = [...cur];
+          copy[i] = {
+            ...c,
+            close: newClose,
+            high: Math.round(Math.max(c.high, newClose) * 100) / 100,
+            low: Math.round(Math.min(c.low, newClose) * 100) / 100,
+            volume: c.volume + volumeAdd,
+          };
+          return copy;
+        });
 
-      setPrice(newClose);
+        setPrice(newClose);
 
-      setPositions(cur => cur.map(pos => {
-        if (pos.symbol !== symbol) return pos;
-        const diff = pos.side === 'BUY' ? newClose - pos.avgPrice : pos.avgPrice - newClose;
-        return { ...pos, currentPrice: newClose, pnl: Math.round(diff * pos.qty * 10) / 10 };
-      }));
-    }, 1400);
+        setPositions(cur => cur.map(pos => {
+          if (pos.symbol !== symbol) return pos;
+          const diff = pos.side === 'BUY' ? newClose - pos.avgPrice : pos.avgPrice - newClose;
+          return { ...pos, currentPrice: newClose, pnl: Math.round(diff * pos.qty * 10) / 10 };
+        }));
+      }, 1400);
 
-    return () => clearInterval(interval);
-  }, [symbol]);
+      return () => clearInterval(interval);
+    }
+  }, [symbol, isFyersLive]);
 
   // Risk / Reward calculations
   const riskPoints = Math.max(0.1, Math.abs(Number(price) - Number(stopLoss)));

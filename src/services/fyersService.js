@@ -59,9 +59,11 @@ class FyersService {
     this.liveIndices = null;
     this.funds = null;
     this.positions = null;
+    this.optionChain = null; // Real option chain from Fyers for PCR calculation
     this.listeners = [];
     this.pollTimer = null;
     this.constituentTimer = null;
+    this.optionChainTimer = null;
     // 429 backoff bookkeeping.
     this.throttledUntil = 0;
     this.backoffMs = 0;
@@ -86,6 +88,7 @@ class FyersService {
       profile: this.profile,
       liveQuotes: this.liveQuotes,
       liveIndices: this.liveIndices,
+      optionChain: this.optionChain,
       rateLimited: this.rateLimited,
       funds: this.funds,
       positions: this.positions,
@@ -106,10 +109,12 @@ class FyersService {
       this.startPolling();
       this.fetchFunds();
       this.fetchPositions();
+      this.fetchOptionChain('NSE:NIFTY50-INDEX');
     } else {
       this.stopPolling();
       this.liveQuotes = null;
       this.liveIndices = null;
+      this.optionChain = null;
     }
     this.notify();
     return this.connected;
@@ -154,8 +159,12 @@ class FyersService {
     this.constituentTimer = setInterval(
       () => this.fetchConstituentQuotes(), CONSTITUENT_INTERVAL_MS
     );
+    this.optionChainTimer = setInterval(
+      () => this.fetchOptionChain('NSE:NIFTY50-INDEX'), 5000 // Every 5s for PCR
+    );
     this.fetchIndexQuotes();
     this.fetchConstituentQuotes();
+    this.fetchOptionChain('NSE:NIFTY50-INDEX');
   }
 
   stopPolling() {
@@ -166,6 +175,10 @@ class FyersService {
     if (this.constituentTimer) {
       clearInterval(this.constituentTimer);
       this.constituentTimer = null;
+    }
+    if (this.optionChainTimer) {
+      clearInterval(this.optionChainTimer);
+      this.optionChainTimer = null;
     }
   }
 
@@ -230,6 +243,20 @@ class FyersService {
       if (this.isThrottled()) return;
       const entries = await this.fetchBatch(chunk);
       if (entries) this.applyQuoteEntries(entries);
+    }
+  }
+
+  /** Fetch option chain data for PCR calculation */
+  async fetchOptionChain(symbol = 'NSE:NIFTY50-INDEX') {
+    if (this.isThrottled()) return;
+    try {
+      const data = await api(`/option-chain?symbol=${encodeURIComponent(symbol)}`);
+      if (data.s === 'ok' && Array.isArray(data.d)) {
+        this.optionChain = data.d;
+        this.notify();
+      }
+    } catch {
+      // Silently fail if option chain unavailable
     }
   }
 
