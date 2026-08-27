@@ -6,15 +6,15 @@ export default function MarketDistribution({ marketData, _isRunning, isFyersLive
   const distribution = useMemo(() => {
     if (!marketData) {
       return {
-        pcr: 0.85,
+        pcr: 1.24,
         sentiment: 'BEARISH',
         bullsValue: 78.01,
-        bullsPercentage: 54.1,
+        bullsPercentage: 55.4,
         bearsValue: 66.31,
-        bearsPercentage: 45.9,
-        previousPcr: 0.85,
-        pcrChange: 0.0,
-        pcrChangePercent: 0.0
+        bearsPercentage: 44.6,
+        previousPcr: 1.20,
+        pcrChange: 0.04,
+        pcrChangePercent: 3.33
       };
     }
 
@@ -30,16 +30,24 @@ export default function MarketDistribution({ marketData, _isRunning, isFyersLive
     }
 
     // PCR = Put OI / Call OI
-    const pcr = totalCallOi > 0 ? Number((totalPutOi / totalCallOi).toFixed(2)) : 0.85;
+    // Higher PCR = More puts (defensive/bearish)
+    // Lower PCR = More calls (aggressive/bullish)
+    const pcr = totalCallOi > 0 ? Number((totalPutOi / totalCallOi).toFixed(2)) : 1.24;
 
-    // Sentiment based on PCR (Option Writing Perspective)
-    // PCR >= 1.05: Put OI > Call OI -> Put Writers (Bulls) dominate -> BULLISH
-    // PCR <= 0.85: Call OI > Put OI -> Call Writers (Bears) dominate -> BEARISH
+    // Sentiment based on PCR (Institutional Positioning)
+    // PCR > 1.2: Extreme put buying -> Institutions buying downside protection -> BEARISH
+    // PCR 1.0-1.2: Elevated put buying -> Cautious -> BEARISH
+    // PCR 0.9-1.0: Balanced -> NEUTRAL
+    // PCR < 0.9: Call buying dominance -> Aggressive bullish -> BULLISH
     let sentiment = 'NEUTRAL';
-    if (pcr >= 1.05) {
-      sentiment = 'BULLISH';
-    } else if (pcr <= 0.85) {
-      sentiment = 'BEARISH';
+    if (pcr > 1.2) {
+      sentiment = 'BEARISH'; // Extreme hedging, defensive
+    } else if (pcr >= 1.0) {
+      sentiment = 'BEARISH'; // Elevated put buying
+    } else if (pcr > 0.9) {
+      sentiment = 'NEUTRAL';
+    } else {
+      sentiment = 'BULLISH'; // Call buying dominance, aggressive
     }
 
     // Calculate Bulls (PE - Put Writers/Support) and Bears (CE - Call Writers/Resistance) values in Lakhs
@@ -51,16 +59,18 @@ export default function MarketDistribution({ marketData, _isRunning, isFyersLive
       ? marketData.optionChain.reduce((sum, s) => sum + (s.put?.ltp || 0), 0) / marketData.optionChain.length
       : 140;
 
-    // In Option Analysis, Put OI represents Bullish Support & Call OI represents Bearish Resistance
-    const bullsValue = (totalPutOi * avgPutValue) / 10000000; // Put OI in Lakhs (Bulls)
-    const bearsValue = (totalCallOi * avgCallValue) / 10000000; // Call OI in Lakhs (Bears)
+    // In Option Analysis:
+    // Put OI represents Bullish Support (Puts are insurance/downside protection)
+    // Call OI represents Bearish Resistance (Calls are upside bets)
+    const bullsValue = (totalPutOi * avgPutValue) / 10000000; // Put OI in Lakhs (Bulls/Support)
+    const bearsValue = (totalCallOi * avgCallValue) / 10000000; // Call OI in Lakhs (Bears/Resistance)
 
     // Distribution percentage based on OI
     const totalOI = totalCallOi + totalPutOi;
     const bullsPercentage = totalOI > 0 ? ((totalPutOi / totalOI) * 100) : 50; // Put OI % = Bulls %
     const bearsPercentage = 100 - bullsPercentage; // Call OI % = Bears %
 
-    // Previous day PCR (simulated slight variation)
+    // Previous day PCR (simulated slight variation for real data scenarios)
     const previousPcr = pcr + (Math.random() - 0.5) * 0.05;
     const pcrChange = Number((pcr - previousPcr).toFixed(2));
     const pcrChangePercent = previousPcr > 0 ? Number(((pcrChange / previousPcr) * 100).toFixed(2)) : 0;
@@ -74,7 +84,11 @@ export default function MarketDistribution({ marketData, _isRunning, isFyersLive
       bearsPercentage: Math.round(bearsPercentage * 10) / 10,
       previousPcr: Math.round(previousPcr * 100) / 100,
       pcrChange,
-      pcrChangePercent
+      pcrChangePercent,
+      totalCallOi,
+      totalPutOi,
+      avgCallValue: Math.round(avgCallValue * 100) / 100,
+      avgPutValue: Math.round(avgPutValue * 100) / 100
     };
   }, [marketData]);
 

@@ -114,7 +114,7 @@ export default function MarketPulseView({
         <div className="flex flex-wrap items-center justify-between gap-5 relative z-10">
           <div className="space-y-2 min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="badge-cyan font-mono text-[10px] uppercase tracking-widest flex items-center gap-1 font-bold">
+              <span className="badge-cyan font-mono text-[10px] uppercase tracking-widest flex items-center gap-1 font-bold badge-pop">
                 <Sparkles style={{ width: 12, height: 12 }} /> Institutional Quant Engine
               </span>
               {bull && (
@@ -261,11 +261,11 @@ export default function MarketPulseView({
         <div className="xl:col-span-2 space-y-3">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2 min-w-0">
-              <div className="p-1.5 rounded-lg bg-sky-500/15 text-sky-400 shrink-0">
+              <div className="p-1.5 rounded-lg icon-badge-cyan shrink-0">
                 <Zap style={{ width: 15, height: 15 }} />
               </div>
               <h2 className="section-title truncate">Featured Signals</h2>
-              <span className="badge-cyan text-[9px] font-mono shrink-0">{INITIAL_AI_SIGNALS.length} ACTIVE</span>
+              <span className="badge-cyan text-[9px] font-mono shrink-0 badge-pop">{INITIAL_AI_SIGNALS.length} ACTIVE</span>
             </div>
             <button
               onClick={() => onNavigate('scanners')}
@@ -282,7 +282,7 @@ export default function MarketPulseView({
                 <div key={sig.id} className="pro-card p-4">
                   {/* Identity row */}
                   <div className="flex items-start gap-3">
-                    <div className={`p-2.5 rounded-xl shrink-0 ${isBuy ? 'bg-emerald-500/15 border border-emerald-500/30' : 'bg-rose-500/15 border border-rose-500/30'}`}>
+                    <div className={`p-2.5 rounded-xl shrink-0 border ${isBuy ? 'icon-badge-green border-emerald-500/40' : 'icon-badge-rose border-rose-500/40'}`}>
                       {isBuy
                         ? <ArrowUpRight style={{ width: 18, height: 18 }} className="text-emerald-400" />
                         : <ArrowDownRight style={{ width: 18, height: 18 }} className="text-rose-400" />}
@@ -341,7 +341,7 @@ export default function MarketPulseView({
           <div className="space-y-3">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2 min-w-0">
-                <div className="p-1.5 rounded-lg bg-emerald-500/15 text-emerald-400 shrink-0">
+                <div className="p-1.5 rounded-lg icon-badge-green shrink-0">
                   <BarChart3 style={{ width: 15, height: 15 }} />
                 </div>
                 <h2 className="section-title truncate">Top Sectors</h2>

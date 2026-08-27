@@ -4,6 +4,9 @@
 import { ALL_CONSTITUENT_SYMBOLS } from './indexMoverData';
 
 // Fyers symbols mapped onto the simulator's index keys.
+// NOTE: GIFT Nifty is NOT included — it trades on NSE IX and has no Fyers
+// index symbol. It stays simulated, derived from Nifty's movement (see
+// marketSimulator tick), which is how the header ticker keeps it live.
 export const FYERS_INDEX_SYMBOLS = {
   nifty: 'NSE:NIFTY50-INDEX',
   bankNifty: 'NSE:NIFTYBANK-INDEX',
@@ -43,7 +46,22 @@ const BACKOFF_MAX_MS = 120000;
 
 async function api(path, options) {
   const resp = await fetch(`/api/fyers${path}`, options);
-  return resp.json();
+  
+  // Check for response status
+  if (!resp.ok) {
+    const text = await resp.text();
+    console.error(`[fyersService] HTTP ${resp.status} from ${path}:`, text.substring(0, 200));
+    throw new Error(`Fyers API error: ${resp.status} ${resp.statusText}`);
+  }
+
+  // Try to parse JSON, with better error handling
+  try {
+    return await resp.json();
+  } catch (err) {
+    const text = await resp.text();
+    console.error(`[fyersService] JSON parse failed from ${path}:`, err, 'response:', text.substring(0, 200));
+    throw new Error(`Invalid response from Fyers server (not JSON): ${text.substring(0, 100)}`);
+  }
 }
 
 class FyersService {
@@ -98,19 +116,28 @@ class FyersService {
   /** Check backend session; starts the quote poller when connected. */
   async refreshStatus() {
     try {
+      console.log(`[fyersService] 🔍 Checking Fyers connection status...`);
       const data = await api('/status');
+      console.log(`[fyersService] Status response:`, data);
+      
       this.connected = !!data.connected;
       this.profile = data.profile || null;
-    } catch {
+      
+      console.log(`[fyersService] Connected: ${this.connected}, Profile:`, this.profile);
+    } catch (err) {
+      console.error(`[fyersService] ❌ Error checking status:`, err);
       this.connected = false;
       this.profile = null;
     }
+    
     if (this.connected) {
+      console.log(`[fyersService] ✅ Fyers connected! Starting polling...`);
       this.startPolling();
       this.fetchFunds();
       this.fetchPositions();
       this.fetchOptionChain('NSE:NIFTY50-INDEX');
     } else {
+      console.log(`[fyersService] ⚠️ Fyers not connected, stopping polling`);
       this.stopPolling();
       this.liveQuotes = null;
       this.liveIndices = null;
@@ -250,19 +277,42 @@ class FyersService {
   async fetchOptionChain(symbol = 'NSE:NIFTY50-INDEX') {
     if (!this.connected || this.isThrottled()) return;
     try {
+      console.log(`[fyersService] 🔄 Fetching option chain for ${symbol}...`);
       const data = await api(`/option-chain?symbol=${encodeURIComponent(symbol)}`);
+      
+      console.log(`[fyersService] 📊 Option chain response:`, data);
+      
       if (data.connected === false || data.expired) {
+        console.log(`[fyersService] ❌ Session expired or disconnected`);
         this.connected = false;
         this.stopPolling();
         this.notify();
         return;
       }
+      
       if (data.s === 'ok' && Array.isArray(data.d)) {
+        console.log(`[fyersService] ✅ Option chain received: ${data.d.length} strikes`);
+        console.log(`[fyersService] First strike:`, data.d[0]);
+        
+        // Calculate PCR for verification
+        let totalCallOi = 0;
+        let totalPutOi = 0;
+        data.d.forEach(strike => {
+          totalCallOi += strike.call?.oi || 0;
+          totalPutOi += strike.put?.oi || 0;
+        });
+        const pcr = totalCallOi > 0 ? (totalPutOi / totalCallOi).toFixed(2) : 'N/A';
+        
+        console.log(`[fyersService] 📈 PCR Calculation: ${pcr} (Put OI: ${totalPutOi}, Call OI: ${totalCallOi})`);
+        
         this.optionChain = data.d;
         this.notify();
+        console.log(`[fyersService] ✅ Option chain stored and subscribers notified`);
+      } else {
+        console.log(`[fyersService] ❌ Invalid option chain response:`, data);
       }
-    } catch {
-      // Silently fail if option chain unavailable
+    } catch (err) {
+      console.error(`[fyersService] ❌ Error fetching option chain:`, err);
     }
   }
 

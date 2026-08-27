@@ -14,13 +14,21 @@ const TOKEN_FILE = path.join(__dirname, '.fyers-token.json');
 
 const FYERS_APP_ID = process.env.FYERS_APP_ID || '';
 const FYERS_SECRET = process.env.FYERS_SECRET || '';
-const FYERS_REDIRECT_URI =
-  process.env.FYERS_REDIRECT_URI || 'http://localhost:3001/api/fyers/callback';
 const PORT = Number(process.env.PORT) || 3001;
+
+// Public base URL. On Render this is injected automatically as
+// RENDER_EXTERNAL_URL (https://<app>.onrender.com); elsewhere fall back to
+// localhost. FYERS_REDIRECT_URI / FRONTEND_URL derive from it so production
+// needs only FYERS_APP_ID + FYERS_SECRET set explicitly.
+const PUBLIC_URL = (
+  process.env.PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`
+).replace(/\/+$/, '');
+
+const FYERS_REDIRECT_URI = process.env.FYERS_REDIRECT_URI || `${PUBLIC_URL}/api/fyers/callback`;
+const FRONTEND_URL = process.env.FRONTEND_URL || PUBLIC_URL;
 
 const FYERS_API_BASE = 'https://api-t1.fyers.in/api/v3';
 const FYERS_DATA_BASE = 'https://api-t1.fyers.in/data';
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 
 // In-memory token state, hydrated from disk so a daily token survives restarts.
 let session = { accessToken: null, refreshToken: null, profile: null };
@@ -33,10 +41,16 @@ try {
 }
 
 function persistSession() {
-  fs.writeFileSync(
-    TOKEN_FILE,
-    JSON.stringify({ accessToken: session.accessToken, refreshToken: session.refreshToken }, null, 2)
-  );
+  try {
+    fs.writeFileSync(
+      TOKEN_FILE,
+      JSON.stringify({ accessToken: session.accessToken, refreshToken: session.refreshToken }, null, 2)
+    );
+  } catch (err) {
+    // Ephemeral or read-only filesystem (e.g. Render free tier) — the token just
+    // won't survive restarts, which is fine because Fyers tokens expire daily.
+    console.warn('[fyers] could not persist token file:', err.message);
+  }
 }
 
 const app = express();
@@ -85,7 +99,21 @@ app.get('/api/fyers/callback', async (req, res) => {
         code: authcode,
       }),
     });
-    const data = await resp.json();
+
+    // Check response status first
+    if (!resp.ok) {
+      const text = await resp.text();
+      console.error('[fyers] validate-authcode failed:', resp.status, text);
+      return res.redirect(`${FRONTEND_URL}/?fyers=error&reason=http_${resp.status}`);
+    }
+
+    let data;
+    try {
+      data = await resp.json();
+    } catch (parseErr) {
+      console.error('[fyers] JSON parse failed:', parseErr, 'response:', await resp.text());
+      return res.redirect(`${FRONTEND_URL}/?fyers=error&reason=invalid_response`);
+    }
 
     if (data.s !== 'ok' || !data.access_token) {
       console.error('[fyers] token exchange failed:', data);
@@ -99,8 +127,10 @@ app.get('/api/fyers/callback', async (req, res) => {
     // Best-effort profile fetch so the UI can show who connected.
     try {
       const p = await fetch(`${FYERS_API_BASE}/profile`, { headers: authHeader() });
-      const pData = await p.json();
-      if (pData.s === 'ok') session.profile = pData.data;
+      if (p.ok) {
+        const pData = await p.json();
+        if (pData.s === 'ok') session.profile = pData.data;
+      }
     } catch {
       session.profile = null;
     }
@@ -144,7 +174,28 @@ app.post('/api/fyers/validate-code', async (req, res) => {
         code: code.trim(),
       }),
     });
-    const data = await resp.json();
+
+    // Check response status
+    if (!resp.ok) {
+      const text = await resp.text();
+      console.error('[fyers] validate-code failed:', resp.status, text);
+      return res.status(resp.status).json({ 
+        error: `Fyers API error (${resp.status})`, 
+        details: text 
+      });
+    }
+
+    let data;
+    try {
+      data = await resp.json();
+    } catch (parseErr) {
+      const text = await resp.text();
+      console.error('[fyers] JSON parse failed in validate-code:', parseErr, 'response:', text);
+      return res.status(502).json({ 
+        error: 'Invalid response from Fyers API', 
+        details: text.substring(0, 200) 
+      });
+    }
 
     if (data.s !== 'ok' || !data.access_token) {
       return res.status(400).json({ error: data.message || 'Token exchange failed', details: data });
@@ -156,14 +207,17 @@ app.post('/api/fyers/validate-code', async (req, res) => {
 
     try {
       const p = await fetch(`${FYERS_API_BASE}/profile`, { headers: authHeader() });
-      const pData = await p.json();
-      if (pData.s === 'ok') session.profile = pData.data;
+      if (p.ok) {
+        const pData = await p.json();
+        if (pData.s === 'ok') session.profile = pData.data;
+      }
     } catch {
       session.profile = null;
     }
 
     return res.json({ ok: true, profile: session.profile });
   } catch (err) {
+    console.error('[fyers] validate-code error:', err);
     return res.status(500).json({ error: String(err) });
   }
 });
@@ -217,8 +271,27 @@ app.get('/api/fyers/quotes', async (req, res) => {
   // account limit. Batched, the same poll costs 30 req/min.
   try {
     const url = `${FYERS_DATA_BASE}/quotes?symbols=${encodeURIComponent(symbolList.join(','))}`;
-    const resp = await fetch(url, { headers: authHeader() });
-    const json = await resp.json();
+    console.log(`[fyers-server] Fetching quotes from: ${url}`);
+    console.log(`[fyers-server] Auth header: ${JSON.stringify(authHeader())}`);
+    
+    const resp = await fetch(url, { 
+      headers: authHeader(),
+      // Add timeout and proper error handling
+      signal: AbortSignal.timeout(10000) // 10 second timeout
+    });
+    
+    console.log(`[fyers-server] Quotes response status: ${resp.status}`);
+    
+    const text = await resp.text();
+    console.log(`[fyers-server] Quotes response text: ${text.substring(0, 500)}`);
+    
+    let json;
+    try {
+      json = JSON.parse(text);
+    } catch (parseErr) {
+      console.error(`[fyers-server] JSON parse error:`, parseErr);
+      return res.status(502).json({ error: 'Invalid JSON from Fyers', detail: text.substring(0, 200) });
+    }
 
     if (json.s !== 'ok' || !Array.isArray(json.d)) {
       // Surface a throttle as 429 rather than 502 — the client backs off on
@@ -244,8 +317,10 @@ app.get('/api/fyers/quotes', async (req, res) => {
         },
       }));
 
+    console.log(`[fyers-server] Successfully fetched ${data.length} quotes`);
     res.json({ s: 'ok', d: data });
   } catch (err) {
+    console.error(`[fyers-server] Quotes fetch error:`, err);
     res.status(502).json({ error: 'Fyers upstream error', detail: String(err) });
   }
 });
@@ -346,16 +421,35 @@ app.get('/api/fyers/option-chain', async (req, res) => {
 
   try {
     const url = `${FYERS_DATA_BASE}/option-chain?symbol=${encodeURIComponent(symbol)}`;
-    const resp = await fetch(url, { headers: authHeader() });
-    const data = await resp.json();
+    console.log(`[fyers-server] Fetching option chain from: ${url}`);
+    
+    const resp = await fetch(url, { 
+      headers: authHeader(),
+      signal: AbortSignal.timeout(10000) // 10 second timeout
+    });
+    
+    console.log(`[fyers-server] Option chain response status: ${resp.status}`);
+    
+    const text = await resp.text();
+    console.log(`[fyers-server] Option chain response (first 500 chars): ${text.substring(0, 500)}`);
+    
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch (parseErr) {
+      console.error(`[fyers-server] Option chain JSON parse error:`, parseErr);
+      return res.json({ s: 'error', error: 'Invalid JSON from Fyers', detail: text.substring(0, 200) });
+    }
 
     if (data.code === -16 || data.code === -8 || resp.status === 401) {
+      console.log(`[fyers-server] Token expired or invalid`);
       session.accessToken = null;
       persistSession();
       return res.json({ s: 'error', connected: false, expired: true, error: 'Session expired' });
     }
 
     if (data.s !== 'ok' || !Array.isArray(data.d)) {
+      console.log(`[fyers-server] Option chain error response:`, data);
       return res.json({ s: 'error', error: 'Fyers option chain error', detail: data });
     }
 
@@ -380,13 +474,41 @@ app.get('/api/fyers/option-chain', async (req, res) => {
       }
     }));
 
+    console.log(`[fyers-server] Successfully fetched ${optionChain.length} strikes`);
     res.json({ s: 'ok', d: optionChain, symbol });
   } catch (err) {
+    console.error(`[fyers-server] Option chain fetch error:`, err);
     res.json({ s: 'error', error: 'Fyers option chain upstream error', detail: String(err) });
   }
 });
 
+// --- Production static frontend ----------------------------------------------
+
+// In production the built frontend (dist/) is served by this same Express
+// process, so the whole app — UI + /api proxy — runs on one HTTPS origin.
+// Render terminates HTTPS for us, and the browser talks same-origin to /api.
+const DIST_DIR = path.join(__dirname, '..', 'dist');
+
+if (fs.existsSync(DIST_DIR)) {
+  app.use(express.static(DIST_DIR));
+
+  // SPA fallback: the app uses hash routing (#/app/<tab>), so any non-API GET
+  // path is the frontend and should load index.html.
+  app.use((req, res, next) => {
+    if (req.method === 'GET' && !req.path.startsWith('/api/')) {
+      return res.sendFile(path.join(DIST_DIR, 'index.html'));
+    }
+    next();
+  });
+
+  console.log(`[fyers-server] serving static build from ${DIST_DIR}`);
+} else {
+  console.log('[fyers-server] no dist/ build found — running API-only (run `npm run build`)');
+}
+
 app.listen(PORT, () => {
   console.log(`[fyers-server] listening on http://localhost:${PORT}`);
+  console.log(`[fyers-server] public URL: ${PUBLIC_URL}`);
+  console.log(`[fyers-server] fyers redirect URI: ${FYERS_REDIRECT_URI}`);
   console.log(`[fyers-server] app id configured: ${FYERS_APP_ID ? 'yes' : 'NO — fill server/.env'}`);
 });

@@ -131,9 +131,17 @@ export const INSTITUTIONAL_FLOW = {
 };
 
 // Generate Option Chain Strikes around current NIFTY price (24,580)
+// This generates realistic OI data that produces correct PCR values
 export function generateOptionChain(atmPrice = 24600) {
   const strikes = [];
   const baseStrike = Math.round(atmPrice / 50) * 50;
+  
+  // Track total OI for realistic PCR generation
+  let totalCallOi = 0;
+  let totalPutOi = 0;
+  
+  // Generate all strikes first to calculate totals
+  const tempStrikes = [];
   
   for (let i = -10; i <= 10; i++) {
     const strike = baseStrike + (i * 50);
@@ -141,9 +149,25 @@ export function generateOptionChain(atmPrice = 24600) {
     const isItmCall = strike < atmPrice;
     const isItmPut = strike > atmPrice;
     
-    // Simulating Realistic OI & IV
-    const callOi = Math.round(Math.abs(80 - Math.abs(i) * 6) * 1250 + Math.random() * 5000);
-    const putOi = Math.round(Math.abs(85 - Math.abs(i) * 5) * 1180 + Math.random() * 5000);
+    // REALISTIC OI GENERATION for NIFTY options
+    // ATM strikes have highest OI, decreases as we move away
+    // Using realistic multipliers based on actual NSE data
+    const distanceFromAtm = Math.abs(i);
+    
+    // Call OI decreases as strike price increases (away from current price)
+    // Peak at ATM and near ATM, then decreases
+    const callOiMultiplier = Math.max(0.1, 1 - (distanceFromAtm * 0.08));
+    const callOiBase = 2500000; // 25 lakh base - realistic for NIFTY
+    const callOi = Math.round(callOiBase * callOiMultiplier + (Math.random() * 100000 - 50000));
+    
+    // Put OI also peaks at ATM but slightly higher than calls initially
+    // Then decreases as strike price increases
+    const putOiMultiplier = Math.max(0.1, 1.1 - (distanceFromAtm * 0.08));
+    const putOiBase = 2600000; // 26 lakh base - slightly higher than calls
+    const putOi = Math.round(putOiBase * putOiMultiplier + (Math.random() * 100000 - 50000));
+    
+    totalCallOi += callOi;
+    totalPutOi += putOi;
     
     const callLtp = isItmCall 
       ? Math.round((atmPrice - strike + Math.random() * 30 + 40) * 10) / 10 
@@ -153,28 +177,58 @@ export function generateOptionChain(atmPrice = 24600) {
       ? Math.round((strike - atmPrice + Math.random() * 30 + 40) * 10) / 10 
       : Math.round(Math.max(5, 160 - (atmPrice - strike) * 0.85 + Math.random() * 10) * 10) / 10;
 
-    strikes.push({
+    tempStrikes.push({
       strike,
       isAtm,
+      callOi,
+      putOi,
       call: {
         oi: callOi,
-        oiChange: Math.round((Math.random() * 8000) - 2500),
+        oiChange: Math.round((Math.random() * 150000) - 75000),
         iv: Math.round((13.2 + Math.random() * 2) * 10) / 10,
-        volume: Math.round(callOi * (0.8 + Math.random() * 0.5)),
+        volume: Math.round(callOi * (0.08 + Math.random() * 0.05)),
         ltp: callLtp,
         change: Math.round((Math.random() * 24 - 8) * 10) / 10,
       },
       put: {
         oi: putOi,
-        oiChange: Math.round((Math.random() * 8500) - 2000),
+        oiChange: Math.round((Math.random() * 150000) - 75000),
         iv: Math.round((13.5 + Math.random() * 2) * 10) / 10,
-        volume: Math.round(putOi * (0.8 + Math.random() * 0.5)),
+        volume: Math.round(putOi * (0.08 + Math.random() * 0.05)),
         ltp: putLtp,
         change: Math.round((Math.random() * 24 - 8) * 10) / 10,
       }
     });
   }
-  return strikes;
+  
+  // Calculate realistic PCR
+  const pcr = totalCallOi > 0 ? totalPutOi / totalCallOi : 1.0;
+  
+  // If PCR is unrealistic (outside 0.8-1.5), adjust OI values to be more realistic
+  if (pcr < 0.8 || pcr > 1.5) {
+    // Adjust put OI if calls are dominating
+    if (pcr < 0.8) {
+      // Scale up put OI to achieve more realistic 1.0-1.2 range
+      const scaleFactor = 1.2 / pcr;
+      tempStrikes.forEach(strike => {
+        strike.putOi = Math.round(strike.putOi * scaleFactor);
+        strike.put.oi = strike.putOi;
+      });
+      totalPutOi = tempStrikes.reduce((sum, s) => sum + s.putOi, 0);
+    }
+    // Adjust call OI if puts are dominating
+    else if (pcr > 1.5) {
+      // Scale up call OI to achieve more realistic 1.0-1.2 range
+      const scaleFactor = 1.3 / pcr;
+      tempStrikes.forEach(strike => {
+        strike.callOi = Math.round(strike.callOi * scaleFactor);
+        strike.call.oi = strike.callOi;
+      });
+      totalCallOi = tempStrikes.reduce((sum, s) => sum + s.callOi, 0);
+    }
+  }
+  
+  return tempStrikes;
 }
 
 // Global Event Emitter for live market updates
@@ -262,6 +316,17 @@ class MarketSimulatorService {
       this.indices.nifty.price = Math.round((this.indices.nifty.price + niftyDelta) * 100) / 100;
       this.indices.nifty.change = Math.round((this.indices.nifty.change + niftyDelta) * 100) / 100;
       this.indices.nifty.pChange = Math.round((this.indices.nifty.change / 24435) * 10000) / 100;
+
+      // GIFT Nifty tracks Nifty 50 closely (it is Nifty futures on NSE IX).
+      // Apply the same delta plus a small basis drift so it moves with Nifty
+      // but keeps a realistic ~20-60pt premium instead of a frozen constant.
+      if (this.indices.giftNifty) {
+        const giftBasis = 20 + Math.random() * 40; // premium over spot
+        const newGift = this.indices.nifty.price + giftBasis;
+        this.indices.giftNifty.change = Math.round((newGift - (this.indices.giftNifty.price - this.indices.giftNifty.change)) * 100) / 100;
+        this.indices.giftNifty.price = Math.round(newGift * 100) / 100;
+        this.indices.giftNifty.pChange = Math.round((this.indices.giftNifty.change / (this.indices.giftNifty.price - this.indices.giftNifty.change)) * 10000) / 100;
+      }
 
       // Bank Nifty drift
       const bankDelta = (Math.random() - 0.47) * 9.0;

@@ -1,0 +1,29 @@
+# Render Blueprint — one free web service runs BOTH the built frontend and the
+# Fyers /api proxy on a single HTTPS origin. Render provisions and auto-renews a
+# free TLS certificate on https://tradewidsp.onrender.com (subdomain = name).
+#
+# The server derives FYERS_REDIRECT_URI and FRONTEND_URL from RENDER_EXTERNAL_URL
+# (injected automatically by Render), so the only secrets you must supply are
+# your Fyers App ID and Secret.
+#
+# Deploy:
+#   1. Push this repo to GitHub (origin is already set).
+#   2. Render dashboard -> New -> Blueprint -> pick this repo.
+#   3. When prompted, paste FYERS_APP_ID and FYERS_SECRET.
+#   4. Update the Fyers app's redirect URL to
+#      https://tradewidsp.onrender.com/api/fyers/callback (see RENDER_DEPLOYMENT.md).
+#
+# If the name `tradewidsp` is already taken on *.onrender.com, rename it here —
+# the service name IS the public subdomain.
+services:
+  - type: web
+    name: tradewidsp
+    runtime: node
+    plan: free
+    buildCommand: npm run build
+    startCommand: npm start
+    envVars:
+      - key: FYERS_APP_ID
+        sync: false
+      - key: FYERS_SECRET
+        sync: false

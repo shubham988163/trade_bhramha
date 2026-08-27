@@ -17,6 +17,11 @@ import { fyersService } from './services/fyersService';
 
 const SIDEBAR_KEY = 'tb.sidebar.collapsed';
 
+// GIFT NIFTY trades on NSE IX, which Fyers does not carry as a symbol, so it can
+// never be polled live. In live mode we anchor it to the live Nifty spot plus a
+// fixed futures premium (GIFT Nifty typically trades ~+30-60 pts over spot).
+const GIFT_NIFTY_PREMIUM = 42;
+
 const VALID_TABS = new Set(NAV_ITEMS.map((n) => n.id));
 
 /** Read `#/app/<tab>` so a terminal view can be linked to and survives reload. */
@@ -142,9 +147,30 @@ export default function App() {
   // Live Fyers quotes override the simulated indices when connected.
   // Merge `liveIndices` (index keys only) — merging the full `liveQuotes`
   // alias map would spill every equity and alias into the header ticker.
-  const displayIndices = fyers.connected && fyers.liveIndices
-    ? { ...snapshot.indices, ...fyers.liveIndices }
-    : snapshot.indices;
+  const displayIndices = useMemo(() => {
+    const base = snapshot.indices;
+    if (!fyers.connected || !fyers.liveIndices) return base;
+
+    const merged = { ...base, ...fyers.liveIndices };
+
+    // GIFT NIFTY has no Fyers symbol (NSE IX isn't carried by Fyers), so it can't
+    // be polled live. Anchor it to the LIVE Nifty — not the simulator's
+    // random-walk Nifty, which keeps drifting away from the market on screen.
+    const liveNifty = fyers.liveIndices.nifty;
+    const spot = Number(liveNifty?.price);
+    if (merged.giftNifty && spot) {
+      merged.giftNifty = {
+        ...merged.giftNifty,
+        price: spot + GIFT_NIFTY_PREMIUM,
+        change: Number(liveNifty.change) || merged.giftNifty.change,
+        pChange: Number(liveNifty.pChange) || merged.giftNifty.pChange,
+        high: (Number(liveNifty.high) || spot) + GIFT_NIFTY_PREMIUM,
+        low: (Number(liveNifty.low) || spot) + GIFT_NIFTY_PREMIUM,
+      };
+    }
+
+    return merged;
+  }, [snapshot.indices, fyers.connected, fyers.liveIndices]);
 
   // IndexMover reads its own slice of the snapshot, so the live overlay has to
   // be applied here too — otherwise it keeps rendering the static constituent
@@ -172,7 +198,7 @@ export default function App() {
   const renderActiveView = () => {
     switch (activeTab) {
       case 'optionclock':
-        return <OptionClock indices={displayIndices} optionChain={snapshot.optionChain} />;
+        return <OptionClock indices={displayIndices} optionChain={fyers.connected && fyers.optionChain ? fyers.optionChain : snapshot.optionChain} />;
       case 'heatmap':
         return <SectorHeatmap />;
       case 'scanners':
@@ -197,7 +223,7 @@ export default function App() {
           <MarketPulseView
             indices={displayIndices}
             tradeFlowLogs={snapshot.tradeFlowLogs}
-            optionChain={snapshot.optionChain}
+            optionChain={fyers.connected && fyers.optionChain ? fyers.optionChain : snapshot.optionChain}
             onSelectSignal={handleSelectSignal}
             onNavigate={navigate}
           />
